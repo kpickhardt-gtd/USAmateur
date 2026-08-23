@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Select Hole — Oak Hill Marshal Guide</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body class="course-page">
+
+<header class="course-header">
+  <a href="index.html" class="back-link" aria-label="Back to home">&larr;</a>
+  <div class="course-header__text">
+    <span class="course-header__eyebrow">2027 U.S. Amateur</span>
+    <h1 class="course-header__title" id="course-title">Loading course&hellip;</h1>
+  </div>
+</header>
+
+<main class="hole-grid-wrap">
+  <p class="hole-grid-instructions">Tap your hole number to see your station on the map.</p>
+  <div class="hole-grid" id="hole-grid" role="list"></div>
+</main>
+
+<footer class="site-footer">
+  <p>Built for Oak Hill volunteers &middot; not an official USGA or Oak Hill Country Club site</p>
+</footer>
+
+<script src="js/holes-data.js"></script>
+<script src="js/app.js"></script>
+<script>
+  renderCoursePage();
+</script>
+</body>
+</html>

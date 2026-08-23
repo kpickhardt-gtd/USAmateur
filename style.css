@@ -1,0 +1,508 @@
+/* ============================================================
+   Oak Hill Marshal Guide
+   Palette: fairway green #16352A, turf #2F5B41, cream #F6F3EA,
+            brass #B5904D, flag red #C0392B, ink #1B231E
+   Display type: Oswald (condensed, scoreboard feel)
+   Body type: Inter
+   ============================================================ */
+
+:root {
+  --fairway: #16352A;
+  --turf: #2F5B41;
+  --cream: #F6F3EA;
+  --brass: #B5904D;
+  --flag: #C0392B;
+  --ink: #1B231E;
+  --west-accent: #6B4A2F; /* warmer, earthier accent for West course */
+
+  --radius: 4px;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--cream);
+  color: var(--ink);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  -webkit-tap-highlight-color: transparent;
+}
+
+h1, h2 {
+  font-family: 'Oswald', sans-serif;
+  letter-spacing: 0.01em;
+  margin: 0;
+}
+
+a { text-decoration: none; color: inherit; }
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+}
+
+/* ---------- Ribbon (top accent bar, like a flagstick pennant) ---------- */
+.ribbon {
+  height: 6px;
+  background: repeating-linear-gradient(
+    90deg,
+    var(--fairway) 0px, var(--fairway) 24px,
+    var(--brass) 24px, var(--brass) 32px
+  );
+}
+
+/* ---------- Welcome page ---------- */
+.welcome {
+  max-width: 560px;
+  margin: 0 auto;
+  padding: 40px 24px 24px;
+  text-align: center;
+}
+
+.badge-row { margin-bottom: 18px; }
+
+.year-badge {
+  display: inline-block;
+  background: var(--fairway);
+  color: var(--cream);
+  font-family: 'Oswald', sans-serif;
+  font-weight: 600;
+  font-size: 14px;
+  letter-spacing: 0.12em;
+  padding: 6px 16px;
+  border-radius: 999px;
+}
+
+.event-title {
+  font-size: clamp(28px, 8vw, 40px);
+  font-weight: 700;
+  color: var(--fairway);
+  line-height: 1.1;
+}
+
+.venue-line {
+  margin-top: 10px;
+  font-size: 15px;
+  color: var(--turf);
+  font-weight: 500;
+}
+
+.divider {
+  width: 56px;
+  height: 3px;
+  background: var(--brass);
+  margin: 24px auto;
+  border-radius: 2px;
+}
+
+.welcome-copy {
+  font-size: 16px;
+  line-height: 1.6;
+  color: #3a423c;
+  margin: 0 auto 32px;
+}
+
+.course-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.course-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 22px 16px;
+  border-radius: var(--radius);
+  color: var(--cream);
+  position: relative;
+  transition: transform 0.15s ease;
+  border: none;
+  cursor: pointer;
+  font: inherit;
+  width: 100%;
+}
+.course-btn:active { transform: scale(0.98); }
+
+.course-btn--east { background: var(--fairway); }
+.course-btn--west { background: var(--west-accent); }
+
+.course-btn__label {
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  opacity: 0.75;
+}
+.course-btn__name {
+  font-family: 'Oswald', sans-serif;
+  font-size: 26px;
+  font-weight: 600;
+  margin-top: 2px;
+}
+.course-btn__meta {
+  font-size: 13px;
+  opacity: 0.7;
+  margin-top: 4px;
+}
+
+.footnote {
+  margin-top: 28px;
+  font-size: 13px;
+  color: #6b756e;
+}
+
+.site-footer {
+  text-align: center;
+  padding: 24px 16px 40px;
+  font-size: 12px;
+  color: #8a9187;
+}
+
+/* ---------- Course header (shared East/West theming) ---------- */
+.course-header, .hole-header, .admin-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 18px 20px;
+  background: var(--fairway);
+  color: var(--cream);
+}
+.theme-west .course-header,
+.theme-west .hole-header {
+  background: var(--west-accent);
+}
+
+.back-link {
+  font-size: 22px;
+  line-height: 1;
+  padding: 6px 10px;
+  margin-left: -10px;
+  border-radius: 999px;
+}
+.back-link:active { background: rgba(255,255,255,0.15); }
+
+.course-header__eyebrow, .hole-header__eyebrow, .admin-header__eyebrow {
+  display: block;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  opacity: 0.7;
+}
+.course-header__title, .hole-header__title, .admin-header__title {
+  font-size: 22px;
+  font-weight: 600;
+}
+.hole-header__text, .admin-header__text { flex: 1; min-width: 0; }
+.hole-flag {
+  font-family: 'Oswald', sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  background: rgba(255,255,255,0.14);
+  padding: 4px 10px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+/* ---------- Hole grid (tee-marker style buttons) ---------- */
+.hole-grid-wrap {
+  max-width: 520px;
+  margin: 0 auto;
+  padding: 20px 16px 8px;
+}
+
+.hole-grid-instructions {
+  font-size: 14px;
+  color: #5b6459;
+  text-align: center;
+  margin: 4px 0 18px;
+}
+
+.hole-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+@media (min-width: 420px) {
+  .hole-grid { grid-template-columns: repeat(4, 1fr); }
+}
+
+.hole-tile {
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: var(--fairway);
+  color: var(--cream);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border: 3px solid var(--brass);
+  transition: transform 0.12s ease;
+}
+.theme-west .hole-tile { background: var(--west-accent); }
+.hole-tile:active { transform: scale(0.93); }
+
+.hole-tile__number {
+  font-family: 'Oswald', sans-serif;
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1;
+}
+.hole-tile__label {
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  opacity: 0.7;
+  margin-top: 2px;
+}
+
+/* ---------- Hole detail / map page ---------- */
+#map {
+  width: 100%;
+  height: 46vh;
+  min-height: 260px;
+}
+
+.marshal-pin__dot {
+  display: block;
+  width: 18px;
+  height: 18px;
+  border-radius: 50% 50% 50% 0;
+  background: var(--flag);
+  border: 2px solid var(--cream);
+  transform: rotate(-45deg);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.4);
+}
+
+.marshal-pin__num {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--flag);
+  color: #fff;
+  border: 2px solid var(--cream);
+  font-family: 'Oswald', sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.4);
+}
+
+.hole-info {
+  max-width: 560px;
+  margin: 0 auto;
+  padding: 18px 20px 8px;
+}
+
+.hole-info__heading {
+  font-size: 15px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--turf);
+  margin-bottom: 10px;
+}
+
+.marshal-list {
+  list-style: none;
+  margin: 0 0 14px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.marshal-list__item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  background: #fff;
+  border: 1px solid #e4e0d3;
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  font-size: 14.5px;
+}
+.marshal-list__num {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--flag);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.hole-info__note {
+  font-size: 13px;
+  color: #7a8177;
+  line-height: 1.5;
+}
+
+.hole-pager {
+  max-width: 560px;
+  margin: 0 auto;
+  padding: 8px 20px 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.pager-btn {
+  font-size: 13px;
+  font-weight: 600;
+  padding: 10px 14px;
+  border-radius: var(--radius);
+  background: var(--fairway);
+  color: var(--cream);
+  white-space: nowrap;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+}
+.theme-west .pager-btn { background: var(--west-accent); }
+.pager-btn--all {
+  background: transparent;
+  color: var(--turf);
+  border: 1px solid #d8d3c3;
+}
+
+/* ============================================================
+   Admin — hole/marshal spot editor (not linked from marshal nav)
+   ============================================================ */
+
+.admin-banner {
+  background: #2a2a2a;
+  color: #f0ead9;
+  font-size: 12px;
+  text-align: center;
+  padding: 6px 10px;
+  letter-spacing: 0.03em;
+}
+
+.admin-controls {
+  max-width: 560px;
+  margin: 0 auto;
+  padding: 16px 20px 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+}
+.admin-controls label {
+  display: flex;
+  flex-direction: column;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--turf);
+  gap: 4px;
+  flex: 1;
+  min-width: 120px;
+}
+.admin-controls select {
+  font: inherit;
+  font-size: 15px;
+  padding: 8px 10px;
+  border-radius: var(--radius);
+  border: 1px solid #d8d3c3;
+  background: #fff;
+  color: var(--ink);
+}
+.admin-nav-btns {
+  display: flex;
+  gap: 8px;
+}
+
+.admin-instructions {
+  max-width: 560px;
+  margin: 10px auto 0;
+  padding: 0 20px;
+  font-size: 13px;
+  color: #5b6459;
+  line-height: 1.5;
+}
+
+.admin-panel {
+  max-width: 560px;
+  margin: 0 auto;
+  padding: 16px 20px 0;
+}
+
+.admin-panel__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.admin-hole-meta {
+  font-size: 12px;
+  color: #7a8177;
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-spot-row {
+  align-items: center;
+}
+.admin-spot-fields {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.admin-spot-label {
+  font: inherit;
+  font-size: 14px;
+  padding: 6px 8px;
+  border-radius: var(--radius);
+  border: 1px solid #d8d3c3;
+  width: 100%;
+}
+.admin-spot-radius {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: #5b6459;
+}
+.admin-radius-btn {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 1px solid #d8d3c3;
+  background: #fff;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+.admin-spot-remove {
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: none;
+  background: #f1ece0;
+  color: var(--flag);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.admin-export {
+  max-width: 560px;
+  margin: 8px auto 40px;
+  padding: 16px 20px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.admin-export__row { display: flex; }
