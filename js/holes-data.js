@@ -1,5 +1,5 @@
 // Hole images and marshal stations.
-// Saved from admin.html on 2026-08-24T23:50:52.492Z
+// Saved from admin.html on 2026-08-24T23:52:23.641Z
 const HOLES_DATA = {
   "east": {
     "name": "Oak Hill East",
@@ -39,8 +39,26 @@ const HOLES_DATA = {
             }
           ]
         },
-        "image": null,
-        "imageReady": false,
+        "image": {
+          "src": "east-01.jpg",
+          "width": 2048,
+          "height": 1152,
+          "tee": {
+            "x": 0.07999999999854655,
+            "y": 0.499999999996757
+          },
+          "green": {
+            "x": 0.9199999999985465,
+            "y": 0.499999999996757
+          },
+          "shots": [
+            {
+              "x": 0.6145455876227749,
+              "y": 0.598084611818572
+            }
+          ]
+        },
+        "imageReady": true,
         "spotsDone": false,
         "lengthYards": 455.95875144876965
       },
@@ -62,15 +80,45 @@ const HOLES_DATA = {
         ],
         "source": {
           "kind": "satellite",
-          "tee": null,
-          "green": null,
+          "tee": {
+            "lat": 43.11178593337156,
+            "lng": -77.52817797309088
+          },
+          "green": {
+            "lat": 43.11305593920516,
+            "lng": -77.52399925290614
+          },
           "bearingNudge": 0,
           "zoomNudge": 0,
-          "shots": []
+          "shots": [
+            {
+              "lat": 43.11278928535064,
+              "lng": -77.52547621279933
+            }
+          ]
         },
-        "image": null,
-        "imageReady": false,
-        "spotsDone": false
+        "image": {
+          "src": "east-02.jpg",
+          "width": 2048,
+          "height": 1152,
+          "tee": {
+            "x": 0.08000000000242447,
+            "y": 0.49999999999822364
+          },
+          "green": {
+            "x": 0.9200000000024247,
+            "y": 0.49999999999822364
+          },
+          "shots": [
+            {
+              "x": 0.6409080649308633,
+              "y": 0.4239723900385565
+            }
+          ]
+        },
+        "imageReady": true,
+        "spotsDone": false,
+        "lengthYards": 404.15617720313315
       },
       {
         "number": 3,
