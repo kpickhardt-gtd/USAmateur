@@ -2,24 +2,48 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>Admin — Marshal Spot Editor</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin — Hole Images &amp; Marshal Stations</title>
 <meta name="robots" content="noindex, nofollow">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+<link rel="stylesheet" href="vendor/leaflet/leaflet.css"/>
 <link rel="stylesheet" href="css/style.css">
 </head>
-<body class="hole-page">
+<body class="admin-page">
 
-<div class="admin-banner">ADMIN — not linked from the marshal-facing pages. Bookmark this URL if you need to come back.</div>
+<div class="admin-banner">ADMIN — not linked from the marshal pages. Bookmark this URL.</div>
 
 <header class="admin-header">
   <div class="admin-header__text">
     <span class="admin-header__eyebrow">Marshal Guide Admin</span>
-    <h1 class="admin-header__title">Hole &amp; Spot Editor</h1>
+    <h1 class="admin-header__title">Hole Images &amp; Marshal Stations</h1>
   </div>
+  <div class="admin-progress" id="admin-progress"></div>
 </header>
+
+<div class="draft-conflict" id="draft-conflict" hidden>
+  <p class="draft-conflict__text" id="draft-conflict-text"></p>
+  <div class="draft-conflict__actions">
+    <button type="button" class="pager-btn" id="use-file-instead">Load the file instead</button>
+    <button type="button" class="pager-btn pager-btn--all" id="dismiss-conflict">Keep browser edits</button>
+  </div>
+</div>
+
+<!-- The two stages are independent: stage 1 makes images, stage 2 works only
+     on images. Changing where images come from doesn't affect stage 2. -->
+<nav class="admin-steps">
+  <button type="button" class="admin-step-tab is-active" id="stage-1-tab">
+    <span class="admin-step-tab__num">STAGE 1</span>
+    <span class="admin-step-tab__label">Hole images</span>
+    <span class="admin-step-tab__hint">Capture from satellite, or upload</span>
+  </button>
+  <button type="button" class="admin-step-tab" id="stage-2-tab">
+    <span class="admin-step-tab__num">STAGE 2</span>
+    <span class="admin-step-tab__label">Marshal stations</span>
+    <span class="admin-step-tab__hint">Place on the hole image</span>
+  </button>
+</nav>
 
 <div class="admin-controls">
   <label>Course
@@ -32,51 +56,165 @@
     <select id="admin-hole"></select>
   </label>
   <div class="admin-nav-btns">
-    <button type="button" id="admin-prev-hole" class="pager-btn pager-btn--all">&larr;</button>
-    <button type="button" id="admin-next-hole" class="pager-btn pager-btn--all">&rarr;</button>
+    <button type="button" id="admin-prev-hole" class="pager-btn pager-btn--all" aria-label="Previous hole">&larr;</button>
+    <button type="button" id="admin-next-hole" class="pager-btn pager-btn--all" aria-label="Next hole">&rarr;</button>
   </div>
 </div>
 
-<p class="admin-instructions">
-  Pan and zoom the satellite map to find the real hole. Click anywhere on the map to drop a new highlighted
-  marshal spot; drag its numbered pin to fine-tune the position. Use the list below to rename a spot, resize
-  its highlight circle, or remove it.
-</p>
+<div class="admin-layout">
+<div class="admin-layout__map">
 
-<div id="map"></div>
-
-<div class="admin-panel">
-  <div class="admin-panel__row">
-    <button type="button" id="admin-set-center" class="pager-btn pager-btn--all">Set hole center/zoom to current map view</button>
-    <span class="admin-hole-meta" id="admin-hole-meta"></span>
+  <!-- STAGE 1 surface: live satellite -->
+  <div id="geo-wrap">
+    <div class="map-frame"><div id="geo-map"></div></div>
+    <p class="framing-readout" id="geo-readout"></p>
+    <div class="admin-panel admin-framing">
+      <div class="admin-framing__group">
+        <span class="admin-framing__label">Rotate</span>
+        <button type="button" class="admin-mini-btn" data-rotate="-5">−5°</button>
+        <button type="button" class="admin-mini-btn" data-rotate="-1">−1°</button>
+        <button type="button" class="admin-mini-btn" data-rotate="1">+1°</button>
+        <button type="button" class="admin-mini-btn" data-rotate="5">+5°</button>
+      </div>
+      <div class="admin-framing__group">
+        <span class="admin-framing__label">Zoom</span>
+        <button type="button" class="admin-mini-btn" data-zoom="-0.5">−½</button>
+        <button type="button" class="admin-mini-btn" data-zoom="-0.25">−¼</button>
+        <button type="button" class="admin-mini-btn" data-zoom="0.25">+¼</button>
+        <button type="button" class="admin-mini-btn" data-zoom="0.5">+½</button>
+      </div>
+      <button type="button" class="pager-btn pager-btn--all" id="reset-framing">Reset framing</button>
+    </div>
   </div>
 
-  <h2 class="hole-info__heading">Marshal spots on this hole</h2>
-  <ul class="marshal-list" id="admin-spot-list"></ul>
-  <button type="button" id="admin-add-spot" class="pager-btn">+ Add spot at map center</button>
-</div>
+  <!-- STAGE 2 surface: the hole image only -->
+  <div id="img-wrap" hidden>
+    <div class="admin-preview-row">
+      <span class="admin-preview-row__label">Preview as</span>
+      <div class="admin-toggle-group">
+        <button type="button" class="admin-toggle is-active" data-preview="wide">Computer — tee left</button>
+        <button type="button" class="admin-toggle" data-preview="narrow">Phone — tee bottom</button>
+      </div>
+    </div>
+    <div class="map-frame"><div id="img-map"></div></div>
+  </div>
 
-<div class="admin-export">
-  <p id="admin-draft-note" class="hole-info__note"></p>
-  <div class="admin-export__row">
-    <button type="button" id="admin-download" class="course-btn course-btn--east">Download updated holes-data.js</button>
-  </div>
-  <div class="admin-export__row">
-    <button type="button" id="admin-reset" class="pager-btn pager-btn--all" style="width:100%;">Reset to original file data</button>
-  </div>
-  <p class="hole-info__note">
-    Downloading gives you a fresh <code>holes-data.js</code> with all your edits across every hole and both
-    courses. Replace <code>js/holes-data.js</code> in the repo with the downloaded file and commit it to
-    publish the changes to the live site.
+</div><!-- /admin-layout__map -->
+<div class="admin-layout__panels">
+
+<!-- ============ STAGE 1 ============ -->
+<section class="admin-panel" id="stage-1-panel">
+  <h2 class="hole-info__heading">Stage 1 — make the hole image</h2>
+  <p class="admin-instructions">
+    Place the <strong>tee box</strong> and the <strong>top of the green</strong> on the satellite map.
+    The view rotates and scales itself to that axis, so what you see is what the capture produces.
+    Shift-drag (or two-finger twist) to spin the imagery while hunting for the hole.
   </p>
-</div>
+  <div class="admin-btn-row">
+    <button type="button" class="pager-btn" id="place-tee">Place tee pin</button>
+    <button type="button" class="pager-btn" id="place-green">Place green pin</button>
+    <button type="button" class="pager-btn pager-btn--all" id="clear-endpoints">Clear both</button>
+  </div>
 
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <button type="button" class="course-btn course-btn--east" id="capture-hole">
+    <span class="course-btn__label">Satellite &rarr; image</span>
+    <span class="course-btn__name">Capture hole image</span>
+    <span class="course-btn__meta">downloads a .jpg to save in images/holes/</span>
+  </button>
+
+  <label class="admin-import">
+    <span class="admin-import__label">Or upload an image for this hole</span>
+    <input type="file" id="upload-image" accept="image/*">
+    <span class="admin-import__hint">
+      Use this for official course artwork later. You then mark its tee and green in stage 2 —
+      existing marshal stations move with the new marks automatically.
+    </span>
+  </label>
+
+  <p class="admin-hole-meta" id="image-info"></p>
+
+  <label class="admin-check">
+    <input type="checkbox" id="image-ready-toggle">
+    <span>Image for this hole is final</span>
+  </label>
+</section>
+
+<!-- ============ STAGE 2 ============ -->
+<section class="admin-panel" id="stage-2-panel" hidden>
+  <h2 class="hole-info__heading">Stage 2 — place marshal stations</h2>
+
+  <p class="admin-warning" id="stage-2-warning" hidden>
+    This hole has no image yet. Go to stage 1 and capture (or upload) one first —
+    marshal stations are placed on the image, not on the satellite map.
+  </p>
+
+  <div id="stage-2-body">
+    <p class="admin-instructions">
+      Click the image to drop a station; drag its numbered pin to fine-tune. Positions are stored
+      relative to the hole's own axis (distance from the tee, and yards left or right of the centre
+      line), so they survive replacing the image.
+    </p>
+
+    <div class="admin-btn-row">
+      <button type="button" class="pager-btn pager-btn--all" id="mark-tee">Re-mark tee on image</button>
+      <button type="button" class="pager-btn pager-btn--all" id="mark-green">Re-mark green on image</button>
+    </div>
+
+    <ul class="marshal-list" id="spot-list"></ul>
+    <button type="button" class="pager-btn" id="add-spot">+ Add station at hole centre</button>
+
+    <label class="admin-check">
+      <input type="checkbox" id="spots-done-toggle">
+      <span>Marshal stations for this hole are signed off</span>
+    </label>
+  </div>
+</section>
+
+<!-- Export / import -->
+<section class="admin-panel admin-export">
+  <h2 class="hole-info__heading">Save your work</h2>
+  <p class="admin-status" id="admin-status"></p>
+
+  <button type="button" class="course-btn course-btn--east" id="export-hole">
+    <span class="course-btn__label">This hole only</span>
+    <span class="course-btn__name">Export hole</span>
+    <span class="course-btn__meta">one .json file — good for splitting the work up</span>
+  </button>
+
+  <button type="button" class="course-btn course-btn--west" id="export-all">
+    <span class="course-btn__label">Everything</span>
+    <span class="course-btn__name">Export holes-data.js</span>
+    <span class="course-btn__meta">replaces js/holes-data.js to publish the site</span>
+  </button>
+
+  <label class="admin-import">
+    <span class="admin-import__label">Import hole file(s)</span>
+    <input type="file" id="import-file" accept=".json,application/json" multiple>
+    <span class="admin-import__hint">
+      Merges per-hole exports back in — pick several at once. Also accepts a full data file.
+    </span>
+  </label>
+
+  <button type="button" class="pager-btn pager-btn--all" id="admin-reset">Discard browser edits</button>
+
+  <p class="hole-info__note">
+    Captured images download to your computer — save them into <code>images/holes/</code> in the
+    repo. The data itself only reaches the live site when you export
+    <code>holes-data.js</code> and commit it.
+  </p>
+</section>
+
+</div><!-- /admin-layout__panels -->
+</div><!-- /admin-layout -->
+
+<script src="vendor/leaflet/leaflet.js"></script>
+<script src="vendor/leaflet/leaflet-rotate.js"></script>
 <script src="js/holes-data.js"></script>
 <script src="js/app.js"></script>
+<script src="js/capture.js"></script>
 <script src="js/admin.js"></script>
 <script>
-  initAdmin();
+  if (!mapLibraryMissing('geo-map')) initAdmin();
 </script>
 </body>
 </html>

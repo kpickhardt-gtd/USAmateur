@@ -1,33 +1,110 @@
 # Oak Hill Marshal Guide — 2027 U.S. Amateur
 
 A mobile-friendly site for hole marshals: pick East or West course, pick a hole,
-see a satellite view with the marshal station(s) highlighted.
+see that hole's image with the marshal station(s) highlighted — oriented so the
+hole reads tee-to-green on any screen.
 
-## ⚠️ Important — the map pins are still placeholders
+## Two stages, deliberately separate
 
-`js/holes-data.js` currently has each hole's center arranged in a rough circle
-around the clubhouse, just so the map has *something* to show — it does not
-reflect Oak Hill's real hole-by-hole layout yet.
+The build splits cleanly in two, so that changing where hole pictures come
+from does **not** invalidate the marshal work.
 
-**Before this goes live, use the built-in admin editor to fix that:**
+```
+STAGE 1  Hole images          STAGE 2  Marshal stations
+satellite / artwork  ──▶  image + tee & green marks  ──▶  stations on the axis
+```
 
-1. Open `admin.html` in a browser (locally, or on the deployed GitHub Pages
-   site — it's not linked from the marshal-facing pages, so bookmark the URL).
-2. Pick a course and hole from the dropdowns.
-3. Pan/zoom the satellite map until you're looking at the real hole.
-4. Click **"Set hole center/zoom to current map view"** so the hole opens
-   there for marshals.
-5. Click on the map to drop a highlighted marshal spot; drag its numbered pin
-   to the exact spot. Use the list below the map to rename it (e.g. "Behind
-   tee box, left side," "Fairway crossing point") and resize the highlight
-   circle with the +/- buttons. Add as many spots per hole as you need.
-6. Repeat for every hole on both courses.
-7. Click **Download updated holes-data.js**, then replace
-   `js/holes-data.js` in this folder with the downloaded file.
+**Stage 1** produces one image per hole plus two facts about it: where the tee
+and the green sit on that picture. Today those images are captured from
+satellite imagery. Later they can be official course artwork instead.
 
-Your edits are auto-saved to that browser's local storage as a safety net
-while you work, but the only way they reach the live site is downloading and
-committing the file — nothing is saved to a server.
+**Stage 2** places marshal stations on that image — but stores them in the
+hole's *own* coordinates:
+
+* `t` — 0 at the tee, 1 at the green (may fall outside that range)
+* `offsetYards` — yards left/right of the centre line
+* `radiusYards` — how much ground the highlight covers
+
+No pixels, no latitude/longitude. **That is what makes the images swappable:**
+drop in a new picture, re-mark its tee and green, and every station lands
+correctly with no re-work.
+
+### Stage 1 — make the hole images
+
+1. Open `admin.html` (not linked from the marshal pages — bookmark it) and
+   pick a course and hole.
+2. Find the hole on the satellite map. Shift-drag (or two-finger twist) to
+   spin the imagery while hunting.
+3. **Place tee pin**, click the tee box; it advances to the green
+   automatically — click the top of the green. The view rotates and scales
+   itself to that axis, so what you see is what you'll capture. Nudge with
+   the rotate (±1°/±5°) and zoom (±¼/±½) buttons.
+4. **Capture hole image** downloads `east-01.jpg`. Save it into
+   `images/holes/` in the repo.
+5. Tick **Image for this hole is final**.
+
+Images come out 2048×1152, landscape, tee-left/green-right. Short holes are
+captured smaller rather than upscaled — satellite detail runs out around
+0.3 m/pixel, and a blurry stretch would be worse than fewer pixels. The
+framing is identical either way.
+
+*Or* use **upload an image** instead of capturing — that's the path for
+official course artwork when you get it.
+
+### Stage 2 — place the marshal stations
+
+1. Switch to the **Marshal stations** tab (it needs an image first).
+2. Click the image to drop a station; drag its numbered pin to fine-tune.
+   Each row shows its position as "196 yd from tee · 18 yd left".
+3. Describe the spot and size the highlight with **−** / **+** (in yards).
+4. Tick **signed off**.
+
+**Preview as: Computer / Phone** shows both framings — marshals are on phones,
+you're probably not.
+
+### Swapping in different images later
+
+This is the case the split exists for:
+
+1. Stage 1 → **upload an image** for the hole (or drop the file into
+   `images/holes/` and point `image.src` at it).
+2. Stage 2 → **Re-mark tee on image** and **Re-mark green on image**, clicking
+   where they are in the new picture.
+3. Done. Every station repositions itself. Nothing is re-entered.
+
+### Saving and splitting the work
+
+Edits live in your browser as you go; only the export buttons produce files.
+
+* **Export hole** — one `hole-east-07.json`. Good for doing a few at a time
+  or handing holes to someone else.
+* **Import hole file(s)** — merges those back in; select several at once.
+* **Export holes-data.js** — the whole dataset. Replace `js/holes-data.js`
+  and commit, along with any new images.
+
+The header tracks progress; the hole dropdown marks ✓ (image final) and
+✓✓ (stations signed off). If your browser copy and the file on disk disagree,
+a banner says so rather than silently preferring one.
+
+### Checking that an export actually loaded
+
+The hole grid tells you which stage each hole has reached, so you can confirm a
+committed `holes-data.js` took effect:
+
+| Tile | Meaning |
+|---|---|
+| **Pending** (dim green) | No image — stage 1 not done for this hole |
+| **No spots** (amber) | Image loaded, no marshal stations yet — stage 1 done, stage 2 to do |
+| **Hole** (green) | Image + at least one station — ready for marshals |
+
+Below the grid, a "Setup in progress" line counts both stages. It disappears
+once every hole is complete, so marshals never see it.
+
+So after doing stage 1 for a course and committing the export, expect all 18 to
+read **No spots** — that is confirmation the file loaded, not a failure. If they
+read **Pending** instead, the data really didn't load: check you replaced
+`js/holes-data.js` (not another copy), and hard-refresh to clear the cached
+script (Ctrl/Cmd-Shift-R).
 
 ## Running it locally
 
@@ -40,6 +117,25 @@ python3 -m http.server 8000
 ```
 
 then visit `http://localhost:8000`.
+
+**Keep the folder together.** The pages load `css/`, `js/`, and
+`vendor/leaflet/` by relative path, so the subfolders have to stay next to the
+`.html` files. Copying a single `.html` file somewhere on its own will leave
+you with an unstyled page and no map.
+
+## Troubleshooting: the map area is blank
+
+Two different failures look similar, and they have different fixes:
+
+| What you see | Cause | Fix |
+|---|---|---|
+| Empty box, no `+`/`−` zoom buttons, page looks unstyled | The `css/`, `js/`, or `vendor/` folders aren't sitting next to the HTML file | Open the page from the complete site folder |
+| Dark box with `+`/`−` buttons, no picture, on a **marshal page** | That hole's image file is missing from `images/holes/` | Check the file named in `image.src` was committed |
+| Grey box with a note across the top, in **admin stage 1** | Satellite tiles couldn't be fetched | Connect to the internet — stage 1 needs Esri; nothing else does |
+
+Marshal pages need only their one image file, so once deployed they work on a
+weak connection. Stage 1 of the admin tool is the only part that needs live
+satellite access.
 
 ## Deploying to GitHub Pages (your account, for now)
 
@@ -68,38 +164,69 @@ printed QR codes/links.
 ```
 index.html          Welcome page, East/West course picker
 course.html          18-hole grid for whichever course is in the URL (?course=east|west)
-hole.html            Satellite map + marshal spot(s) for one hole (?course=...&hole=...)
-admin.html           Hidden admin tool: pan/zoom the map, place & edit marshal spots
+hole.html            One hole: its image + marshal stations (?course=...&hole=...)
+admin.html           Hidden admin tool: stage 1 (images) + stage 2 (stations)
 css/style.css        All styling (marshal-facing pages + admin)
-js/holes-data.js     Hole coordinates and marshal spot data — edit via admin.html, or by hand
-js/app.js            Shared rendering logic for course.html / hole.html
-js/admin.js          Admin editor logic (map editing, drag/resize, export)
+images/holes/        The hole images — east-01.jpg ... west-18.jpg
+js/holes-data.js     Image records + marshal stations — written by admin.html
+js/app.js            Axis maths, image transforms, course & hole rendering
+js/capture.js        Stage 1 only: satellite tiles -> a single hole image
+js/admin.js          Admin editor logic for both stages
+vendor/leaflet/      Bundled Leaflet 1.9.4 + leaflet-rotate — don't edit
 ```
 
-## Notes on the satellite imagery
+## Notes on imagery
 
-Maps use Leaflet.js with Esri World Imagery satellite tiles — both free, no
-API key required, and fine to use on a public GitHub Pages site. No changes
-needed there.
+Satellite tiles (Esri World Imagery, free and no API key) are used **only by
+stage 1**, to author the images. The marshal-facing pages load no tiles at all
+— they show a single JPEG. That matters on a crowded course where cell service
+is poor: one image loads far more reliably than dozens of map tiles.
+
+Writing satellite tiles into an exported image needs the tile server to permit
+it (a CORS header). If it refuses, capture stops with a clear message and you
+can use **upload an image** instead — the same path you'd use for official
+artwork. I could not verify Esri's header from my build environment, so this is
+the one thing to confirm on the first real capture.
+
+Leaflet is bundled in `vendor/leaflet/` rather than loaded from a CDN, so the
+app can't be broken by a blocked or offline CDN.
 
 ## Data format
-
-Each hole in `js/holes-data.js` looks like this:
 
 ```json
 {
   "number": 7,
   "par": 4,
-  "center": [43.116891, -77.53307],
-  "zoom": 18,
+  "lengthYards": 414,
+
+  "image": {
+    "src": "images/holes/east-07.jpg",
+    "width": 2048, "height": 1152,
+    "tee":   { "x": 0.08, "y": 0.5 },
+    "green": { "x": 0.92, "y": 0.5 }
+  },
+  "imageReady": true,
+
+  "source": {
+    "kind": "satellite",
+    "tee":   { "lat": 43.11255, "lng": -77.53240 },
+    "green": { "lat": 43.11480, "lng": -77.52890 },
+    "bearingNudge": 0, "zoomNudge": 0
+  },
+
   "marshals": [
-    { "lat": 43.116901, "lng": -77.53310, "label": "Landing zone, right rough", "radius": 12 }
-  ]
+    { "t": 0.62, "offsetYards": -18, "radiusYards": 14,
+      "label": "Fairway crossing, left rough" }
+  ],
+  "spotsDone": true
 }
 ```
 
-`center`/`zoom` control where the map opens when a marshal taps into that
-hole. Each entry in `marshals` draws one highlighted circle (`radius` in
-meters) with a numbered pin marshals can tap for the label. A hole can have
-as many marshal spots as it needs — admin.html manages this array for you,
-but it's plain JSON if you ever want to hand-edit it.
+`image` is stage 1's output; `tee`/`green` are fractions of the image's own
+width and height. `source` is only the satellite provenance for re-capturing —
+nothing at marshal time reads it, and a hole using uploaded artwork doesn't
+need it at all.
+
+`marshals` is stage 2's output and references neither pixels nor coordinates,
+which is why replacing `image` costs nothing but re-marking two points.
+`lengthYards` converts the yard figures into pixels for drawing.
