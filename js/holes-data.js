@@ -1,5 +1,5 @@
 // Hole images and marshal stations.
-// Saved from admin.html on 2026-08-24T23:55:02.096Z
+// Saved from admin.html on 2026-08-24T23:59:09.094Z
 const HOLES_DATA = {
   "east": {
     "name": "Oak Hill East",
@@ -200,13 +200,39 @@ const HOLES_DATA = {
             {
               "lat": 43.1157188649917,
               "lng": -77.52534707291542
+            },
+            {
+              "lat": 43.1171618277383,
+              "lng": -77.52539897523292
             }
           ]
         },
-        "image": null,
-        "imageReady": false,
+        "image": {
+          "src": "east-04.jpg",
+          "width": 2048,
+          "height": 1152,
+          "tee": {
+            "x": 0.08000000000000002,
+            "y": 0.5000000000000001
+          },
+          "green": {
+            "x": 0.9199999999999999,
+            "y": 0.4999999999999999
+          },
+          "shots": [
+            {
+              "x": 0.5038616470373489,
+              "y": 0.3113850789391747
+            },
+            {
+              "x": 0.7349878234953559,
+              "y": 0.45598360303994817
+            }
+          ]
+        },
+        "imageReady": true,
         "spotsDone": false,
-        "lengthYards": 620.6792322916119
+        "lengthYards": 622.2779210869252
       },
       {
         "number": 5,
@@ -226,15 +252,35 @@ const HOLES_DATA = {
         ],
         "source": {
           "kind": "satellite",
-          "tee": null,
-          "green": null,
+          "tee": {
+            "lat": 43.11782564770562,
+            "lng": -77.5251345849215
+          },
+          "green": {
+            "lat": 43.119265149793705,
+            "lng": -77.52569013236786
+          },
           "bearingNudge": 0,
-          "zoomNudge": 0,
+          "zoomNudge": -0.25,
           "shots": []
         },
-        "image": null,
-        "imageReady": false,
-        "spotsDone": false
+        "image": {
+          "src": "east-05.jpg",
+          "width": 1622,
+          "height": 912,
+          "tee": {
+            "x": 0.14682350559012414,
+            "y": 0.4999999999983387
+          },
+          "green": {
+            "x": 0.8531764944032443,
+            "y": 0.49999999999833883
+          },
+          "shots": []
+        },
+        "imageReady": true,
+        "spotsDone": false,
+        "lengthYards": 181.86226591321483
       },
       {
         "number": 6,
