@@ -1,5 +1,5 @@
 // Hole images and marshal stations.
-// Exported from admin.html on 2026-08-24T01:19:40.412Z
+// Exported from admin.html on 2026-08-24T22:55:37.167Z
 // Replace js/holes-data.js with this file and commit it.
 const HOLES_DATA = {
   "east": {
@@ -8,7 +8,7 @@ const HOLES_DATA = {
       {
         "number": 1,
         "par": null,
-        "lengthYards": 469.80519598237373,
+        "lengthYards": 474.3404643830937,
         "image": {
           "src": "images/holes/east-01.jpg",
           "width": 2048,
@@ -20,7 +20,13 @@ const HOLES_DATA = {
           "green": {
             "x": 0.9199999999999999,
             "y": 0.5
-          }
+          },
+          "shots": [
+            {
+              "x": 0.6020820459549322,
+              "y": 0.6009296309386521
+            }
+          ]
         },
         "imageReady": true,
         "source": {
@@ -34,7 +40,13 @@ const HOLES_DATA = {
             "lng": -77.5274735067095
           },
           "bearingNudge": 0,
-          "zoomNudge": 0
+          "zoomNudge": 0,
+          "shots": [
+            {
+              "lat": 43.11192654848291,
+              "lng": -77.52941766898489
+            }
+          ]
         },
         "marshals": [
           {
@@ -79,7 +91,7 @@ const HOLES_DATA = {
       {
         "number": 2,
         "par": null,
-        "lengthYards": 427.2081884405755,
+        "lengthYards": 428.4693911449729,
         "image": {
           "src": "images/holes/east-02.jpg",
           "width": 2048,
@@ -91,7 +103,13 @@ const HOLES_DATA = {
           "green": {
             "x": 0.9199999999999999,
             "y": 0.5
-          }
+          },
+          "shots": [
+            {
+              "x": 0.6265942794268231,
+              "y": 0.44522880395048847
+            }
+          ]
         },
         "imageReady": true,
         "source": {
@@ -105,7 +123,13 @@ const HOLES_DATA = {
             "lng": -77.52380588532363
           },
           "bearingNudge": 0,
-          "zoomNudge": 0
+          "zoomNudge": 0,
+          "shots": [
+            {
+              "lat": 43.11278751358769,
+              "lng": -77.52542386016758
+            }
+          ]
         },
         "marshals": [
           {
@@ -156,7 +180,8 @@ const HOLES_DATA = {
           "green": {
             "x": 0.9199999999999998,
             "y": 0.4999999999999999
-          }
+          },
+          "shots": []
         },
         "imageReady": true,
         "source": {
@@ -170,7 +195,8 @@ const HOLES_DATA = {
             "lng": -77.52485809407752
           },
           "bearingNudge": 0,
-          "zoomNudge": 0
+          "zoomNudge": 0,
+          "shots": []
         },
         "marshals": [],
         "spotsDone": false
@@ -178,7 +204,7 @@ const HOLES_DATA = {
       {
         "number": 4,
         "par": null,
-        "lengthYards": 622.980812960132,
+        "lengthYards": 640.058987707458,
         "image": {
           "src": "images/holes/east-04.jpg",
           "width": 2048,
@@ -190,7 +216,17 @@ const HOLES_DATA = {
           "green": {
             "x": 0.9199999999999999,
             "y": 0.4999999999999999
-          }
+          },
+          "shots": [
+            {
+              "x": 0.48684601209390427,
+              "y": 0.32980757515873266
+            },
+            {
+              "x": 0.7191337492240369,
+              "y": 0.4537501755142487
+            }
+          ]
         },
         "imageReady": true,
         "source": {
@@ -204,7 +240,17 @@ const HOLES_DATA = {
             "lng": -77.52579665091797
           },
           "bearingNudge": 0,
-          "zoomNudge": 0
+          "zoomNudge": 0,
+          "shots": [
+            {
+              "lat": 43.115700407184235,
+              "lng": -77.52527456525782
+            },
+            {
+              "lat": 43.11717617132225,
+              "lng": -77.52541077246188
+            }
+          ]
         },
         "marshals": [],
         "spotsDone": false
@@ -224,7 +270,8 @@ const HOLES_DATA = {
           "green": {
             "x": 0.9199999999990279,
             "y": 0.5000000000062804
-          }
+          },
+          "shots": []
         },
         "imageReady": true,
         "source": {
@@ -238,7 +285,8 @@ const HOLES_DATA = {
             "lng": -77.52574672928702
           },
           "bearingNudge": 0,
-          "zoomNudge": 0
+          "zoomNudge": 0,
+          "shots": []
         },
         "marshals": [],
         "spotsDone": false
@@ -246,7 +294,7 @@ const HOLES_DATA = {
       {
         "number": 6,
         "par": null,
-        "lengthYards": 515.2722557664911,
+        "lengthYards": 528.0821773737326,
         "image": {
           "src": "images/holes/east-06.jpg",
           "width": 2048,
@@ -258,7 +306,13 @@ const HOLES_DATA = {
           "green": {
             "x": 0.9199999999985755,
             "y": 0.5000000000004404
-          }
+          },
+          "shots": [
+            {
+              "x": 0.5741094693977318,
+              "y": 0.3349795640971063
+            }
+          ]
         },
         "imageReady": true,
         "source": {
@@ -272,7 +326,13 @@ const HOLES_DATA = {
             "lng": -77.52725790938909
           },
           "bearingNudge": 0,
-          "zoomNudge": 0
+          "zoomNudge": 0,
+          "shots": [
+            {
+              "lat": 43.11687587487495,
+              "lng": -77.52621637457949
+            }
+          ]
         },
         "marshals": [],
         "spotsDone": false
@@ -280,7 +340,7 @@ const HOLES_DATA = {
       {
         "number": 7,
         "par": null,
-        "lengthYards": 477.80014876785543,
+        "lengthYards": 479.9867272902109,
         "image": {
           "src": "images/holes/east-07.jpg",
           "width": 2048,
@@ -292,7 +352,13 @@ const HOLES_DATA = {
           "green": {
             "x": 0.9199999999984549,
             "y": 0.5000000000003738
-          }
+          },
+          "shots": [
+            {
+              "x": 0.553023342688251,
+              "y": 0.5709466169516869
+            }
+          ]
         },
         "imageReady": true,
         "source": {
@@ -306,7 +372,13 @@ const HOLES_DATA = {
             "lng": -77.52696452810044
           },
           "bearingNudge": 0,
-          "zoomNudge": 0
+          "zoomNudge": 0,
+          "shots": [
+            {
+              "lat": 43.117649962087725,
+              "lng": -77.52702821912362
+            }
+          ]
         },
         "marshals": [],
         "spotsDone": false
@@ -314,7 +386,7 @@ const HOLES_DATA = {
       {
         "number": 8,
         "par": null,
-        "lengthYards": 437.3976592700061,
+        "lengthYards": 438.16697309540973,
         "image": {
           "src": "images/holes/east-08.jpg",
           "width": 2048,
@@ -326,7 +398,13 @@ const HOLES_DATA = {
           "green": {
             "x": 0.9200000000003803,
             "y": 0.5000000000029517
-          }
+          },
+          "shots": [
+            {
+              "x": 0.5906435356542035,
+              "y": 0.5432661557769843
+            }
+          ]
         },
         "imageReady": true,
         "source": {
@@ -340,7 +418,13 @@ const HOLES_DATA = {
             "lng": -77.52869776970338
           },
           "bearingNudge": 0,
-          "zoomNudge": 0
+          "zoomNudge": 0,
+          "shots": [
+            {
+              "lat": 43.11721687888967,
+              "lng": -77.52840569700211
+            }
+          ]
         },
         "marshals": [],
         "spotsDone": false
@@ -348,7 +432,7 @@ const HOLES_DATA = {
       {
         "number": 9,
         "par": null,
-        "lengthYards": 479.94722621985574,
+        "lengthYards": 497.6837124790871,
         "image": {
           "src": "images/holes/east-09.jpg",
           "width": 2048,
@@ -360,7 +444,13 @@ const HOLES_DATA = {
           "green": {
             "x": 0.9200000000011495,
             "y": 0.4999999999981451
-          }
+          },
+          "shots": [
+            {
+              "x": 0.6184864753031797,
+              "y": 0.3028770351729654
+            }
+          ]
         },
         "imageReady": true,
         "source": {
@@ -374,7 +464,13 @@ const HOLES_DATA = {
             "lng": -77.53133977827952
           },
           "bearingNudge": 0,
-          "zoomNudge": 0
+          "zoomNudge": 0,
+          "shots": [
+            {
+              "lat": 43.114168947157616,
+              "lng": -77.52950701905064
+            }
+          ]
         },
         "marshals": [],
         "spotsDone": false
@@ -382,7 +478,7 @@ const HOLES_DATA = {
       {
         "number": 10,
         "par": null,
-        "lengthYards": 428.20645038375295,
+        "lengthYards": 428.7531333562421,
         "image": {
           "src": "images/holes/east-10.jpg",
           "width": 2048,
@@ -394,7 +490,13 @@ const HOLES_DATA = {
           "green": {
             "x": 0.9199999999986146,
             "y": 0.4999999999963845
-          }
+          },
+          "shots": [
+            {
+              "x": 0.641091160931677,
+              "y": 0.535544802331623
+            }
+          ]
         },
         "imageReady": true,
         "source": {
@@ -408,7 +510,13 @@ const HOLES_DATA = {
             "lng": -77.5272659920765
           },
           "bearingNudge": 0,
-          "zoomNudge": 0
+          "zoomNudge": 0,
+          "shots": [
+            {
+              "lat": 43.113325427963204,
+              "lng": -77.52881820879702
+            }
+          ]
         },
         "marshals": [],
         "spotsDone": false
@@ -428,7 +536,8 @@ const HOLES_DATA = {
           "green": {
             "x": 0.9199999999988627,
             "y": 0.49999999999670375
-          }
+          },
+          "shots": []
         },
         "imageReady": true,
         "source": {
@@ -442,7 +551,8 @@ const HOLES_DATA = {
             "lng": -77.52844385063752
           },
           "bearingNudge": 0,
-          "zoomNudge": 0
+          "zoomNudge": 0,
+          "shots": []
         },
         "marshals": [],
         "spotsDone": false
@@ -450,19 +560,25 @@ const HOLES_DATA = {
       {
         "number": 12,
         "par": null,
-        "lengthYards": 422.4659664690692,
+        "lengthYards": 405.40773696260504,
         "image": {
           "src": "images/holes/east-12.jpg",
           "width": 2048,
           "height": 1152,
           "tee": {
-            "x": 0.07999999999853813,
-            "y": 0.5000000000017535
+            "x": 0.08000000000000007,
+            "y": 0.5
           },
           "green": {
-            "x": 0.919999999998538,
-            "y": 0.5000000000017537
-          }
+            "x": 0.9199999999999999,
+            "y": 0.5
+          },
+          "shots": [
+            {
+              "x": 0.6373945571127683,
+              "y": 0.48693695859416014
+            }
+          ]
         },
         "imageReady": true,
         "source": {
@@ -472,11 +588,17 @@ const HOLES_DATA = {
             "lng": -77.52845193891682
           },
           "green": {
-            "lat": 43.11341315305961,
-            "lng": -77.52450677213913
+            "lat": 43.11346477266464,
+            "lng": -77.524692081518
           },
           "bearingNudge": 0,
-          "zoomNudge": 0
+          "zoomNudge": 0,
+          "shots": [
+            {
+              "lat": 43.11412513282418,
+              "lng": -77.52593436403825
+            }
+          ]
         },
         "marshals": [],
         "spotsDone": false
@@ -484,7 +606,7 @@ const HOLES_DATA = {
       {
         "number": 13,
         "par": null,
-        "lengthYards": 611.0297239111354,
+        "lengthYards": 612.6086908678725,
         "image": {
           "src": "images/holes/east-13.jpg",
           "width": 2048,
@@ -496,7 +618,17 @@ const HOLES_DATA = {
           "green": {
             "x": 0.9200000000002042,
             "y": 0.4999999999978628
-          }
+          },
+          "shots": [
+            {
+              "x": 0.4773797790550609,
+              "y": 0.5260027971818413
+            },
+            {
+              "x": 0.7050238590064543,
+              "y": 0.4785101681984599
+            }
+          ]
         },
         "imageReady": true,
         "source": {
@@ -510,7 +642,17 @@ const HOLES_DATA = {
             "lng": -77.5319115514042
           },
           "bearingNudge": 0,
-          "zoomNudge": 0
+          "zoomNudge": 0,
+          "shots": [
+            {
+              "lat": 43.11294128747794,
+              "lng": -77.5283559280632
+            },
+            {
+              "lat": 43.11255567920943,
+              "lng": -77.53015828293577
+            }
+          ]
         },
         "marshals": [],
         "spotsDone": false
@@ -518,7 +660,7 @@ const HOLES_DATA = {
       {
         "number": 14,
         "par": null,
-        "lengthYards": 337.5415353625381,
+        "lengthYards": 339.7743439544887,
         "image": {
           "src": "images/holes/east-14.jpg",
           "width": 2048,
@@ -530,7 +672,13 @@ const HOLES_DATA = {
           "green": {
             "x": 0.919999999997933,
             "y": 0.5000000000041593
-          }
+          },
+          "shots": [
+            {
+              "x": 0.7054661053423349,
+              "y": 0.5751821109565552
+            }
+          ]
         },
         "imageReady": true,
         "source": {
@@ -544,7 +692,13 @@ const HOLES_DATA = {
             "lng": -77.53289247016288
           },
           "bearingNudge": 0,
-          "zoomNudge": 0
+          "zoomNudge": 0,
+          "shots": [
+            {
+              "lat": 43.10986901611165,
+              "lng": -77.53302355172313
+            }
+          ]
         },
         "marshals": [],
         "spotsDone": false
@@ -552,19 +706,20 @@ const HOLES_DATA = {
       {
         "number": 15,
         "par": null,
-        "lengthYards": 180.8147380941257,
+        "lengthYards": 166.71661450932433,
         "image": {
           "src": "images/holes/east-15.jpg",
-          "width": 1356,
-          "height": 763,
+          "width": 1250,
+          "height": 703,
           "tee": {
-            "x": 0.07999999999999993,
-            "y": 0.5000000000000001
+            "x": 0.07999999999721012,
+            "y": 0.5000000000100847
           },
           "green": {
-            "x": 0.92,
-            "y": 0.5
-          }
+            "x": 0.91999999999721,
+            "y": 0.5000000000100849
+          },
+          "shots": []
         },
         "imageReady": true,
         "source": {
@@ -574,11 +729,12 @@ const HOLES_DATA = {
             "lng": -77.53301816966233
           },
           "green": {
-            "lat": 43.10963949712778,
-            "lng": -77.53494611236573
+            "lat": 43.109602032925174,
+            "lng": -77.53479582799649
           },
           "bearingNudge": 0,
-          "zoomNudge": 0
+          "zoomNudge": 0,
+          "shots": []
         },
         "marshals": [],
         "spotsDone": false
@@ -586,19 +742,25 @@ const HOLES_DATA = {
       {
         "number": 16,
         "par": null,
-        "lengthYards": 478.17233040200756,
+        "lengthYards": 465.515055013675,
         "image": {
           "src": "images/holes/east-16.jpg",
           "width": 2048,
           "height": 1152,
           "tee": {
-            "x": 0.07999999999987545,
-            "y": 0.49999999999723843
+            "x": 0.08000000000000007,
+            "y": 0.4999999999999999
           },
           "green": {
-            "x": 0.9199999999998756,
-            "y": 0.49999999999723843
-          }
+            "x": 0.9199999999999999,
+            "y": 0.5
+          },
+          "shots": [
+            {
+              "x": 0.6200557701903932,
+              "y": 0.5378801841318563
+            }
+          ]
         },
         "imageReady": true,
         "source": {
@@ -608,11 +770,17 @@ const HOLES_DATA = {
             "lng": -77.53519011370774
           },
           "green": {
-            "lat": 43.10519030301425,
-            "lng": -77.53562030901794
+            "lat": 43.10530077573742,
+            "lng": -77.53563136222591
           },
           "bearingNudge": 0,
-          "zoomNudge": 0
+          "zoomNudge": 0,
+          "shots": [
+            {
+              "lat": 43.10666914201632,
+              "lng": -77.53560615100896
+            }
+          ]
         },
         "marshals": [],
         "spotsDone": false
@@ -620,19 +788,25 @@ const HOLES_DATA = {
       {
         "number": 17,
         "par": null,
-        "lengthYards": 510.3195456683948,
+        "lengthYards": 514.2273068928425,
         "image": {
           "src": "images/holes/east-17.jpg",
           "width": 2048,
           "height": 1152,
           "tee": {
-            "x": 0.07999999999999996,
-            "y": 0.4999999999999999
+            "x": 0.08000000000000002,
+            "y": 0.5
           },
           "green": {
             "x": 0.92,
-            "y": 0.5000000000000001
-          }
+            "y": 0.5
+          },
+          "shots": [
+            {
+              "x": 0.5735417851251164,
+              "y": 0.32515779855702476
+            }
+          ]
         },
         "imageReady": true,
         "source": {
@@ -642,11 +816,17 @@ const HOLES_DATA = {
             "lng": -77.53568769226234
           },
           "green": {
-            "lat": 43.108745575539885,
-            "lng": -77.53621468151734
+            "lat": 43.108661689950594,
+            "lng": -77.53623039372108
           },
           "bearingNudge": 0,
-          "zoomNudge": 0
+          "zoomNudge": 0,
+          "shots": [
+            {
+              "lat": 43.10692634438247,
+              "lng": -77.5366632643891
+            }
+          ]
         },
         "marshals": [],
         "spotsDone": false
@@ -654,7 +834,7 @@ const HOLES_DATA = {
       {
         "number": 18,
         "par": null,
-        "lengthYards": 517.2176749117008,
+        "lengthYards": 531.7624699610147,
         "image": {
           "src": "images/holes/east-18.jpg",
           "width": 2048,
@@ -666,7 +846,13 @@ const HOLES_DATA = {
           "green": {
             "x": 0.9200000000005777,
             "y": 0.5000000000023461
-          }
+          },
+          "shots": [
+            {
+              "x": 0.6490811788895701,
+              "y": 0.3326422468526271
+            }
+          ]
         },
         "imageReady": true,
         "source": {
@@ -680,7 +866,13 @@ const HOLES_DATA = {
             "lng": -77.53343119511995
           },
           "bearingNudge": 0,
-          "zoomNudge": 0
+          "zoomNudge": 0,
+          "shots": [
+            {
+              "lat": 43.1106579032045,
+              "lng": -77.53478293318457
+            }
+          ]
         },
         "marshals": [],
         "spotsDone": false
@@ -701,7 +893,8 @@ const HOLES_DATA = {
           "tee": null,
           "green": null,
           "bearingNudge": 0,
-          "zoomNudge": 0
+          "zoomNudge": 0,
+          "shots": []
         },
         "marshals": [],
         "spotsDone": false
@@ -717,7 +910,8 @@ const HOLES_DATA = {
           "tee": null,
           "green": null,
           "bearingNudge": 0,
-          "zoomNudge": 0
+          "zoomNudge": 0,
+          "shots": []
         },
         "marshals": [],
         "spotsDone": false
@@ -733,7 +927,8 @@ const HOLES_DATA = {
           "tee": null,
           "green": null,
           "bearingNudge": 0,
-          "zoomNudge": 0
+          "zoomNudge": 0,
+          "shots": []
         },
         "marshals": [],
         "spotsDone": false
@@ -749,7 +944,8 @@ const HOLES_DATA = {
           "tee": null,
           "green": null,
           "bearingNudge": 0,
-          "zoomNudge": 0
+          "zoomNudge": 0,
+          "shots": []
         },
         "marshals": [],
         "spotsDone": false
@@ -765,7 +961,8 @@ const HOLES_DATA = {
           "tee": null,
           "green": null,
           "bearingNudge": 0,
-          "zoomNudge": 0
+          "zoomNudge": 0,
+          "shots": []
         },
         "marshals": [],
         "spotsDone": false
@@ -781,7 +978,8 @@ const HOLES_DATA = {
           "tee": null,
           "green": null,
           "bearingNudge": 0,
-          "zoomNudge": 0
+          "zoomNudge": 0,
+          "shots": []
         },
         "marshals": [],
         "spotsDone": false
@@ -797,7 +995,8 @@ const HOLES_DATA = {
           "tee": null,
           "green": null,
           "bearingNudge": 0,
-          "zoomNudge": 0
+          "zoomNudge": 0,
+          "shots": []
         },
         "marshals": [],
         "spotsDone": false
@@ -813,7 +1012,8 @@ const HOLES_DATA = {
           "tee": null,
           "green": null,
           "bearingNudge": 0,
-          "zoomNudge": 0
+          "zoomNudge": 0,
+          "shots": []
         },
         "marshals": [],
         "spotsDone": false
@@ -829,7 +1029,8 @@ const HOLES_DATA = {
           "tee": null,
           "green": null,
           "bearingNudge": 0,
-          "zoomNudge": 0
+          "zoomNudge": 0,
+          "shots": []
         },
         "marshals": [],
         "spotsDone": false
@@ -845,7 +1046,8 @@ const HOLES_DATA = {
           "tee": null,
           "green": null,
           "bearingNudge": 0,
-          "zoomNudge": 0
+          "zoomNudge": 0,
+          "shots": []
         },
         "marshals": [],
         "spotsDone": false
@@ -861,7 +1063,8 @@ const HOLES_DATA = {
           "tee": null,
           "green": null,
           "bearingNudge": 0,
-          "zoomNudge": 0
+          "zoomNudge": 0,
+          "shots": []
         },
         "marshals": [],
         "spotsDone": false
@@ -877,7 +1080,8 @@ const HOLES_DATA = {
           "tee": null,
           "green": null,
           "bearingNudge": 0,
-          "zoomNudge": 0
+          "zoomNudge": 0,
+          "shots": []
         },
         "marshals": [],
         "spotsDone": false
@@ -893,7 +1097,8 @@ const HOLES_DATA = {
           "tee": null,
           "green": null,
           "bearingNudge": 0,
-          "zoomNudge": 0
+          "zoomNudge": 0,
+          "shots": []
         },
         "marshals": [],
         "spotsDone": false
@@ -909,7 +1114,8 @@ const HOLES_DATA = {
           "tee": null,
           "green": null,
           "bearingNudge": 0,
-          "zoomNudge": 0
+          "zoomNudge": 0,
+          "shots": []
         },
         "marshals": [],
         "spotsDone": false
@@ -925,7 +1131,8 @@ const HOLES_DATA = {
           "tee": null,
           "green": null,
           "bearingNudge": 0,
-          "zoomNudge": 0
+          "zoomNudge": 0,
+          "shots": []
         },
         "marshals": [],
         "spotsDone": false
@@ -941,7 +1148,8 @@ const HOLES_DATA = {
           "tee": null,
           "green": null,
           "bearingNudge": 0,
-          "zoomNudge": 0
+          "zoomNudge": 0,
+          "shots": []
         },
         "marshals": [],
         "spotsDone": false
@@ -957,7 +1165,8 @@ const HOLES_DATA = {
           "tee": null,
           "green": null,
           "bearingNudge": 0,
-          "zoomNudge": 0
+          "zoomNudge": 0,
+          "shots": []
         },
         "marshals": [],
         "spotsDone": false
@@ -973,7 +1182,8 @@ const HOLES_DATA = {
           "tee": null,
           "green": null,
           "bearingNudge": 0,
-          "zoomNudge": 0
+          "zoomNudge": 0,
+          "shots": []
         },
         "marshals": [],
         "spotsDone": false
