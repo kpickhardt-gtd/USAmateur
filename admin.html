@@ -12,7 +12,7 @@
 </head>
 <body class="admin-page">
 
-<div class="admin-banner">ADMIN — not linked from the marshal pages. Bookmark this URL.</div>
+<div class="admin-banner">ADMIN — setup tool. Marshals don't need this page.</div>
 
 <header class="admin-header">
   <div class="admin-header__text">
@@ -107,13 +107,24 @@
   <h2 class="hole-info__heading">Stage 1 — make the hole image</h2>
   <p class="admin-instructions">
     Place the <strong>tee box</strong> and the <strong>top of the green</strong> on the satellite map.
-    The view rotates and scales itself to that axis, so what you see is what the capture produces.
-    Shift-drag (or two-finger twist) to spin the imagery while hunting for the hole.
+    Each pin appears as soon as you click. The view rotates and scales itself to the tee→green
+    line, so what you see is what the capture produces. Shift-drag (or two-finger twist) to spin
+    the imagery while hunting for the hole.
   </p>
   <div class="admin-btn-row">
     <button type="button" class="pager-btn" id="place-tee">Place tee pin</button>
     <button type="button" class="pager-btn" id="place-green">Place green pin</button>
-    <button type="button" class="pager-btn pager-btn--all" id="clear-endpoints">Clear both</button>
+  </div>
+
+  <p class="admin-instructions" style="margin-top:4px">
+    <strong>Doglegs:</strong> add shot points so the centre line follows the fairway instead of
+    cutting the corner. S1 is where the tee shot lands; par 5s often want an S2 as well. The line
+    runs Tee → S1 → S2 → Green, and hole yardage is measured along it.
+  </p>
+  <div class="admin-btn-row">
+    <button type="button" class="pager-btn" id="place-shot">Add shot point S1</button>
+    <button type="button" class="pager-btn pager-btn--all" id="remove-shot">Remove last</button>
+    <button type="button" class="pager-btn pager-btn--all" id="clear-endpoints">Clear all pins</button>
   </div>
 
   <button type="button" class="course-btn course-btn--east" id="capture-hole">
@@ -151,8 +162,9 @@
   <div id="stage-2-body">
     <p class="admin-instructions">
       Click the image to drop a station; drag its numbered pin to fine-tune. Positions are stored
-      relative to the hole's own axis (distance from the tee, and yards left or right of the centre
-      line), so they survive replacing the image.
+      relative to the hole's own centre line — distance walked from the tee, and yards left or
+      right of the fairway — so they survive replacing the image. Drag <strong>T</strong>,
+      <strong>G</strong> or any <strong>S</strong> marker to reshape the line; stations follow it.
     </p>
 
     <div class="admin-btn-row">
@@ -196,6 +208,11 @@
   </label>
 
   <button type="button" class="pager-btn pager-btn--all" id="admin-reset">Discard browser edits</button>
+
+  <p class="hole-info__note">
+    <a href="preflight.html" style="text-decoration:underline">Run the preflight check</a> before
+    publishing — it confirms every hole image actually loads from where the data says it is.
+  </p>
 
   <p class="hole-info__note">
     Captured images download to your computer — save them into <code>images/holes/</code> in the

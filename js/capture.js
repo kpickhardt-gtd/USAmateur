@@ -25,6 +25,14 @@ const CAPTURE_QUALITY = 0.85;
 const MAX_UPSCALE = 1.5;
 const MIN_CAPTURE_WIDTH = 1024;
 
+/* Total ground distance along tee -> shot points -> green. */
+function pathLengthMeters(tee, shots, green) {
+  const pts = [tee].concat(shots || []).concat([green]);
+  let m = 0;
+  for (let i = 0; i < pts.length - 1; i++) m += geoDistanceMeters(pts[i], pts[i + 1]);
+  return m;
+}
+
 function tileUrl(template, z, x, y) {
   return template.replace('{z}', z).replace('{x}', x).replace('{y}', y);
 }
@@ -46,15 +54,55 @@ function loadTile(url) {
    Runs at most twice: if the first pass would upscale the imagery beyond
    MAX_UPSCALE, the output dimensions shrink and it recomputes. */
 function captureGeometry(opts) {
-  const first = captureGeometryPass(opts);
-  if (first.scale <= MAX_UPSCALE) return first;
+  let geo = captureGeometryPass(opts);
+  let dims = { width: opts.width, height: opts.height };
+  let downsized = null;
 
-  const shrink = MAX_UPSCALE / first.scale;
-  const w = Math.max(MIN_CAPTURE_WIDTH, Math.round(opts.width * shrink));
-  const h = Math.round(w * opts.height / opts.width);
-  const second = captureGeometryPass(Object.assign({}, opts, { width: w, height: h }));
-  second.downsized = { from: [opts.width, opts.height], to: [w, h] };
-  return second;
+  // 1. Don't upscale beyond MAX_UPSCALE -- shrink the output instead.
+  if (geo.scale > MAX_UPSCALE) {
+    const shrink = MAX_UPSCALE / geo.scale;
+    const w = Math.max(MIN_CAPTURE_WIDTH, Math.round(opts.width * shrink));
+    const h = Math.round(w * opts.height / opts.width);
+    dims = { width: w, height: h };
+    geo = captureGeometryPass(Object.assign({}, opts, dims));
+    downsized = { from: [opts.width, opts.height], to: [w, h] };
+  }
+
+  // 2. A dogleg's shot points can sit well off the tee->green line and would
+  //    be cropped. Zoom out just enough to include everything. Tee and green
+  //    move inward symmetrically, so they stay centred and balanced -- they
+  //    just aren't at exactly 8%/92% any more.
+  const extra = overflowFactor(geo, opts);
+  if (extra > 1.001) {
+    geo = captureGeometryPass(Object.assign({}, opts, dims, { axisShrink: 1 / extra }));
+    geo.zoomedOutToFit = +extra.toFixed(3);
+  }
+
+  geo.downsized = downsized;
+  return geo;
+}
+
+/* How much wider the frame would have to be to contain the DOGLEG SHOT POINTS
+   with a margin. 1 = already fits.
+
+   Deliberately ignores the tee and green: their position is set by padFrac and
+   the user's zoom nudge, so including them here would silently undo a nudge
+   the user asked for. Shot points are the ones that can land unexpectedly far
+   off the tee->green line and get cropped. */
+function overflowFactor(geo, opts) {
+  const pts = opts.shots || [];
+  if (!pts.length) return 1;
+  const margin = 0.06 * Math.min(geo.width, geo.height);
+  const halfW = geo.width / 2 - margin;
+  const halfH = geo.height / 2 - margin;
+  let worst = 1;
+  pts.forEach(p => {
+    const o = geo.toOutput(lngLatToWorldPx(p.lat, p.lng, geo.zoom));
+    worst = Math.max(worst,
+      Math.abs(o.x - geo.width / 2) / halfW,
+      Math.abs(o.y - geo.height / 2) / halfH);
+  });
+  return worst;
 }
 
 function captureGeometryPass(opts) {
@@ -63,8 +111,10 @@ function captureGeometryPass(opts) {
   const zoomNudge = opts.zoomNudge || 0;
   const bearingNudge = opts.bearingNudge || 0;
 
-  // How long the tee->green axis should be, in output pixels.
-  const desiredAxisPx = W * (1 - 2 * padFrac) * Math.pow(2, zoomNudge);
+  // How long the tee->green axis should be, in output pixels. axisShrink < 1
+  // zooms out to fit a dogleg's shot points into the frame.
+  const axisShrink = opts.axisShrink === undefined ? 1 : opts.axisShrink;
+  const desiredAxisPx = W * (1 - 2 * padFrac) * Math.pow(2, zoomNudge) * axisShrink;
 
   // Axis length at zoom 0, to pick a tile zoom with enough real resolution.
   const t0 = lngLatToWorldPx(opts.tee.lat, opts.tee.lng, 0);
@@ -116,7 +166,11 @@ function captureGeometryPass(opts) {
     width: W, height: H, zoom, scale, theta, mid, nTiles, range,
     toOutput, toWorld,
     teeOut: toOutput(tee), greenOut: toOutput(green),
-    lengthYards: metersToYards(geoDistanceMeters(opts.tee, opts.green)),
+    shotsOut: (opts.shots || []).map(s =>
+      toOutput(lngLatToWorldPx(s.lat, s.lng, zoom))),
+    // Playing length follows the path (tee -> shots -> green), which is the
+    // honest number for a dogleg.
+    lengthYards: metersToYards(pathLengthMeters(opts.tee, opts.shots, opts.green)),
     downsized: null
   };
 }
@@ -125,7 +179,7 @@ function captureGeometryPass(opts) {
    that stage 2 needs. */
 async function captureHoleImage(opts) {
   const geo = captureGeometry({
-    tee: opts.tee, green: opts.green,
+    tee: opts.tee, green: opts.green, shots: opts.shots || [],
     width: opts.width || CAPTURE_WIDTH,
     height: opts.height || CAPTURE_HEIGHT,
     padFrac: opts.padFrac === undefined ? CAPTURE_PAD_FRAC : opts.padFrac,
@@ -193,12 +247,14 @@ async function captureHoleImage(opts) {
     zoom: geo.zoom,
     scale: geo.scale,
     downsized: geo.downsized,
+    zoomedOutToFit: geo.zoomedOutToFit || null,
     lengthYards: geo.lengthYards,
     image: {
       width: geo.width,
       height: geo.height,
       tee:   { x: geo.teeOut.x / geo.width,   y: geo.teeOut.y / geo.height },
-      green: { x: geo.greenOut.x / geo.width, y: geo.greenOut.y / geo.height }
+      green: { x: geo.greenOut.x / geo.width, y: geo.greenOut.y / geo.height },
+      shots: geo.shotsOut.map(p => ({ x: p.x / geo.width, y: p.y / geo.height }))
     }
   };
 }

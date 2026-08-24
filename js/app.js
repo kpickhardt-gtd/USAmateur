@@ -31,6 +31,22 @@ const SATELLITE_ATTRIBUTION = 'Imagery &copy; Esri, Maxar, Earthstar Geographics
    Below it the image is rotated so the hole runs bottom-to-top. */
 const WIDE_LAYOUT_MIN_PX = 700;
 
+/* Where the hole images live, relative to the HTML pages.
+   -------------------------------------------------------
+   In the normal build this is 'images/holes/'. In the FLAT build (every file
+   at the top level, for hosts or upload tools that won't take folders) it is
+   ''. Every image path is resolved through resolveImageSrc(), which keeps only
+   the file name and re-prefixes it — so the same holes-data.js works unchanged
+   in either layout, and you never have to hand-edit paths. */
+const IMAGE_BASE = 'images/holes/';
+
+function resolveImageSrc(src) {
+  if (!src) return src;
+  // Leave blob:/data:/http: references alone (unsaved captures in the admin).
+  if (/^(blob:|data:|https?:)/.test(src)) return src;
+  return IMAGE_BASE + src.split('/').pop();
+}
+
 /* Capture defaults (stage 1). 16:9 rotates to 9:16, which fills a phone. */
 const CAPTURE_WIDTH = 2048;
 const CAPTURE_HEIGHT = 1152;
@@ -118,6 +134,8 @@ function holeHasImage(hole) {
    The only bridge between stage 1 and stage 2. Everything marshal-related
    goes through here, which is why changing the image is cheap. */
 
+/* Straight tee->green line. Used for ORIENTATION only (which way the hole
+   faces), never for measuring along it -- see holePath for that. */
 function holeAxis(hole) {
   if (!holeHasImage(hole)) return null;
   const { width: W, height: H, tee, green } = hole.image;
@@ -126,40 +144,96 @@ function holeAxis(hole) {
   const dx = g.x - t.x, dy = g.y - t.y;
   const len = Math.sqrt(dx * dx + dy * dy);
   if (!len) return null;
-  const u = { x: dx / len, y: dy / len };          // tee -> green
-  const n = { x: -u.y, y: u.x };                   // right side, image y grows down
+  const u = { x: dx / len, y: dy / len };
+  const n = { x: -u.y, y: u.x };
   return { tee: t, green: g, u, n, len };
 }
 
-/* Yards per image pixel along the axis. */
-function yardsPerPixel(hole) {
-  const ax = holeAxis(hole);
-  const yds = num(hole.lengthYards, 0);
-  if (!ax || !yds) return null;
-  return yds / ax.len;
+/* The hole's CENTRE LINE as a polyline in image pixels:
+       tee -> S1 -> S2 -> ... -> green
+   Shot points let a dogleg follow the fairway instead of cutting the corner.
+   With no shot points there is exactly one segment and every formula below
+   reduces to the old straight-line maths, so existing data is unaffected. */
+function holePath(hole) {
+  if (!holeHasImage(hole)) return null;
+  const { width: W, height: H, tee, green } = hole.image;
+
+  const pts = [{ x: tee.x * W, y: tee.y * H }];
+  (hole.image.shots || []).forEach(s => pts.push({ x: s.x * W, y: s.y * H }));
+  pts.push({ x: green.x * W, y: green.y * H });
+
+  const segs = [];
+  let total = 0;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const a = pts[i], b = pts[i + 1];
+    const dx = b.x - a.x, dy = b.y - a.y;
+    const len = Math.hypot(dx, dy);
+    if (!len) continue;                       // ignore duplicate points
+    const u = { x: dx / len, y: dy / len };
+    segs.push({ a, b, u, n: { x: -u.y, y: u.x }, len, start: total });
+    total += len;
+  }
+  if (!segs.length) return null;
+  return { pts, segs, total };
 }
 
-/* (t, offsetYards) -> image pixel {x,y} */
+/* Yards per image pixel, measured ALONG THE PATH. */
+function yardsPerPixel(hole) {
+  const path = holePath(hole);
+  const yds = num(hole.lengthYards, 0);
+  if (!path || !yds) return null;
+  return yds / path.total;
+}
+
+/* (t, offsetYards) -> image pixel {x,y}.
+   t is the fraction of the path walked from the tee; offsetYards is measured
+   perpendicular to whichever segment the point falls on. */
 function axisToImagePoint(hole, t, offsetYards) {
-  const ax = holeAxis(hole);
+  const path = holePath(hole);
   const ypp = yardsPerPixel(hole);
-  if (!ax || !ypp) return null;
+  if (!path || !ypp) return null;
+
+  const d = t * path.total;
+  let seg = path.segs[0];
+  for (let i = 0; i < path.segs.length; i++) {
+    seg = path.segs[i];
+    if (d <= seg.start + seg.len) break;      // last segment extrapolates past the green
+  }
+  const along = d - seg.start;
   const offPx = (offsetYards || 0) / ypp;
   return {
-    x: ax.tee.x + ax.u.x * t * ax.len + ax.n.x * offPx,
-    y: ax.tee.y + ax.u.y * t * ax.len + ax.n.y * offPx
+    x: seg.a.x + seg.u.x * along + seg.n.x * offPx,
+    y: seg.a.y + seg.u.y * along + seg.n.y * offPx
   };
 }
 
-/* image pixel {x,y} -> (t, offsetYards) */
+/* image pixel {x,y} -> (t, offsetYards), by projecting onto the nearest
+   segment of the path. Points before the tee or past the green extrapolate
+   off the end segment rather than being clamped, so a marshal standing behind
+   the tee still gets a sensible negative distance. */
 function imagePointToAxis(hole, px, py) {
-  const ax = holeAxis(hole);
+  const path = holePath(hole);
   const ypp = yardsPerPixel(hole);
-  if (!ax || !ypp) return null;
-  const dx = px - ax.tee.x, dy = py - ax.tee.y;
+  if (!path || !ypp) return null;
+
+  let best = null;
+  path.segs.forEach((seg, i) => {
+    const dx = px - seg.a.x, dy = py - seg.a.y;
+    const raw = dx * seg.u.x + dy * seg.u.y;
+    const isFirst = i === 0, isLast = i === path.segs.length - 1;
+    // Allow running off the outer ends; clamp only at interior joints.
+    const lo = isFirst ? -Infinity : 0;
+    const hi = isLast ? Infinity : seg.len;
+    const along = Math.max(lo, Math.min(hi, raw));
+    const cx = seg.a.x + seg.u.x * along, cy = seg.a.y + seg.u.y * along;
+    const dist2 = (px - cx) ** 2 + (py - cy) ** 2;
+    if (!best || dist2 < best.dist2) best = { seg, along, dist2 };
+  });
+
+  const dx = px - best.seg.a.x, dy = py - best.seg.a.y;
   return {
-    t: (dx * ax.u.x + dy * ax.u.y) / ax.len,
-    offsetYards: (dx * ax.n.x + dy * ax.n.y) * ypp
+    t: (best.seg.start + best.along) / path.total,
+    offsetYards: (dx * best.seg.n.x + dy * best.seg.n.y) * ypp
   };
 }
 
@@ -256,7 +330,7 @@ function createImageMap(containerId, opts) {
 function setHoleImage(map, hole, existing) {
   const bounds = imageBounds(hole);
   if (existing) map.removeLayer(existing);
-  const layer = L.imageOverlay(hole.image.src, bounds).addTo(map);
+  const layer = L.imageOverlay(resolveImageSrc(hole.image.src), bounds).addTo(map);
   return layer;
 }
 
@@ -286,6 +360,14 @@ function greenIcon() {
   });
 }
 
+function shotIcon(index) {
+  return L.divIcon({
+    className: 'hole-endpoint',
+    html: `<span class="hole-endpoint__mark hole-endpoint__mark--shot">S${index + 1}</span>`,
+    iconSize: [26, 26], iconAnchor: [13, 13]
+  });
+}
+
 function marshalIcon(index) {
   return L.divIcon({
     className: 'marshal-pin',
@@ -300,31 +382,39 @@ function spotPopupHtml(index, spot) {
   return `<strong>Station ${index + 1}</strong>${bits.length ? '<br>' + bits.join('<br>') : ''}`;
 }
 
-/* Tee/green markers + centre line, drawn from the IMAGE's own tee/green. */
+/* The centre line plus its markers: tee, any shot points, green. The line
+   follows the path, so a dogleg traces the fairway. */
 function addHoleEndpoints(map, hole, opts) {
   opts = opts || {};
   if (!holeHasImage(hole)) return null;
-  const ax = holeAxis(hole);
-  const teeLL = imgToLatLng(hole, ax.tee.x, ax.tee.y);
-  const greenLL = imgToLatLng(hole, ax.green.x, ax.green.y);
+  const path = holePath(hole);
+  if (!path) return null;
 
-  const line = L.polyline([teeLL, greenLL], {
+  const latlngs = path.pts.map(p => imgToLatLng(hole, p.x, p.y));
+
+  const line = L.polyline(latlngs, {
     color: '#F6F3EA', weight: 2, opacity: 0.5,
     dashArray: '8 10', interactive: false
   }).addTo(map);
 
-  const tee = L.marker(teeLL, {
+  const tee = L.marker(latlngs[0], {
     icon: teeIcon(), draggable: !!opts.draggable, zIndexOffset: 400
   }).addTo(map);
-  const green = L.marker(greenLL, {
+  const green = L.marker(latlngs[latlngs.length - 1], {
     icon: greenIcon(), draggable: !!opts.draggable, zIndexOffset: 400
   }).addTo(map);
+
+  const shots = latlngs.slice(1, -1).map((ll, i) =>
+    L.marker(ll, {
+      icon: shotIcon(i), draggable: !!opts.draggable, zIndexOffset: 380
+    }).addTo(map));
 
   if (opts.labels !== false) {
     tee.bindPopup('<strong>Tee box</strong>');
     green.bindPopup('<strong>Green</strong>');
+    shots.forEach((m, i) => m.bindPopup(`<strong>Shot point S${i + 1}</strong>`));
   }
-  return { line, tee, green };
+  return { line, tee, green, shots };
 }
 
 /* A marshal station, positioned from its axis coordinates. */

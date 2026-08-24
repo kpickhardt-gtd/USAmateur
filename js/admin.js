@@ -17,7 +17,7 @@
    ============================================================ */
 
 const DRAFT_KEY = 'oakhill_admin_draft_v3';
-const IMAGE_DIR = 'images/holes';
+const IMAGE_DIR = IMAGE_BASE.replace(/\/$/, '');
 
 let state;
 let stage = 1;
@@ -49,7 +49,9 @@ function holeKey(course, n) { return `${course}-${String(n).padStart(2, '0')}`; 
 /* Where stage 2 and the marshal page should load the image from. */
 function imageDisplaySrc(h) {
   const key = holeKey(currentCourse, h.number);
-  return pendingImages[key] || (h.image && h.image.src) || null;
+  // A capture made this session is still a blob; otherwise resolve the
+  // committed file path for whichever folder layout this build uses.
+  return pendingImages[key] || (h.image && h.image.src ? resolveImageSrc(h.image.src) : null);
 }
 
 /* ---------- persistence ---------- */
@@ -138,7 +140,9 @@ function migrateState() {
         };
       }
       delete h.tee; delete h.green; delete h.bearingNudge; delete h.zoomNudge;
+      if (!Array.isArray(h.source.shots)) h.source.shots = [];
       if (!('image' in h)) h.image = null;
+      if (h.image && !Array.isArray(h.image.shots)) h.image.shots = [];
       if (typeof h.imageReady !== 'boolean') h.imageReady = !!h.image;
       if (typeof h.spotsDone !== 'boolean') h.spotsDone = false;
       if (typeof h.lengthYards !== 'number' && holeHasSource(h)) {
@@ -216,6 +220,8 @@ function initAdmin() {
   // stage 1
   document.getElementById('place-tee').addEventListener('click', () => setPlacing('tee'));
   document.getElementById('place-green').addEventListener('click', () => setPlacing('green'));
+  document.getElementById('place-shot').addEventListener('click', () => setPlacing('shot'));
+  document.getElementById('remove-shot').addEventListener('click', removeLastShot);
   document.getElementById('clear-endpoints').addEventListener('click', clearEndpoints);
   document.getElementById('capture-hole').addEventListener('click', captureCurrentHole);
   document.getElementById('upload-image').addEventListener('change', uploadImage);
@@ -340,40 +346,83 @@ function normalizeDeg(d) {
   return Math.round((((d + 180) % 360 + 360) % 360 - 180) * 10) / 10;
 }
 
+/* Draw whatever pins exist -- deliberately NOT waiting for a complete
+   tee+green pair, so a pin appears the instant you place it. */
 function drawGeo() {
   if (geoLayers) {
-    [geoLayers.line, geoLayers.tee, geoLayers.green].forEach(l => l && geoMap.removeLayer(l));
+    [geoLayers.line, geoLayers.tee, geoLayers.green]
+      .concat(geoLayers.shots || [])
+      .forEach(l => l && geoMap.removeLayer(l));
     geoLayers = null;
   }
   const h = hole();
-  if (!holeHasSource(h)) return;
+  const src = h.source || {};
+  if (!src.tee && !src.green && !(src.shots || []).length) return;
 
-  const teeLL = [h.source.tee.lat, h.source.tee.lng];
-  const greenLL = [h.source.green.lat, h.source.green.lng];
-  const line = L.polyline([teeLL, greenLL], {
-    color: '#F6F3EA', weight: 2, opacity: 0.55, dashArray: '6 8', interactive: false
-  }).addTo(geoMap);
-  const tee = L.marker(teeLL, { icon: teeIcon(), draggable: true, zIndexOffset: 400 }).addTo(geoMap);
-  const green = L.marker(greenLL, { icon: greenIcon(), draggable: true, zIndexOffset: 400 }).addTo(geoMap);
+  const ll = p => [p.lat, p.lng];
+  const shots = src.shots || [];
+
+  // The centre line follows tee -> S1 -> S2 -> green
+  const linePts = []
+    .concat(src.tee ? [ll(src.tee)] : [])
+    .concat(shots.map(ll))
+    .concat(src.green ? [ll(src.green)] : []);
+
+  const line = linePts.length > 1
+    ? L.polyline(linePts, { color: '#F6F3EA', weight: 2, opacity: 0.55,
+                            dashArray: '6 8', interactive: false }).addTo(geoMap)
+    : null;
+
+  function redrawLine() {
+    if (!line) return;
+    const pts = []
+      .concat(geoLayers.tee ? [geoLayers.tee.getLatLng()] : [])
+      .concat((geoLayers.shots || []).map(m => m.getLatLng()))
+      .concat(geoLayers.green ? [geoLayers.green.getLatLng()] : []);
+    line.setLatLngs(pts);
+  }
+
+  const tee = src.tee
+    ? L.marker(ll(src.tee), { icon: teeIcon(), draggable: true, zIndexOffset: 400 }).addTo(geoMap)
+    : null;
+  const green = src.green
+    ? L.marker(ll(src.green), { icon: greenIcon(), draggable: true, zIndexOffset: 400 }).addTo(geoMap)
+    : null;
+  const shotMarkers = shots.map((p, i) =>
+    L.marker(ll(p), { icon: shotIcon(i), draggable: true, zIndexOffset: 380 }).addTo(geoMap));
+
+  geoLayers = { line, tee, green, shots: shotMarkers };
 
   [['tee', tee], ['green', green]].forEach(([which, m]) => {
-    m.on('drag', () => line.setLatLngs([tee.getLatLng(), green.getLatLng()]));
+    if (!m) return;
+    m.on('drag', redrawLine);
     m.on('dragend', () => {
-      const ll = m.getLatLng();
-      hole().source[which] = { lat: ll.lat, lng: ll.lng };
-      recomputeLength();
-      updateGeoReadout();
+      const p = m.getLatLng();
+      hole().source[which] = { lat: p.lat, lng: p.lng };
+      recomputeLength(); updateGeoReadout();
       markDirty(`Moved the ${which} pin.`);
     });
   });
-  geoLayers = { line, tee, green };
+
+  shotMarkers.forEach((m, i) => {
+    m.on('drag', redrawLine);
+    m.on('dragend', () => {
+      const p = m.getLatLng();
+      hole().source.shots[i] = { lat: p.lat, lng: p.lng };
+      recomputeLength(); updateGeoReadout();
+      markDirty(`Moved shot point S${i + 1}.`);
+    });
+  });
 }
 
+/* Playing length along tee -> shot points -> green. */
 function recomputeLength() {
   const h = hole();
-  if (holeHasSource(h)) {
-    h.lengthYards = metersToYards(geoDistanceMeters(h.source.tee, h.source.green));
-  }
+  if (!holeHasSource(h)) return;
+  const pts = [h.source.tee].concat(h.source.shots || []).concat([h.source.green]);
+  let m = 0;
+  for (let i = 0; i < pts.length - 1; i++) m += geoDistanceMeters(pts[i], pts[i + 1]);
+  h.lengthYards = metersToYards(m);
 }
 
 function frameGeo() {
@@ -403,8 +452,11 @@ function updateGeoReadout() {
       + `zoom ${num(geoMap.getZoom(), 16).toFixed(2)} · tee/green not placed`;
     return;
   }
+  const nShots = (h.source.shots || []).length;
   el.textContent = `Hole runs ${geoBearing(h.source.tee, h.source.green).toFixed(1)}° · `
-    + `${Math.round(h.lengthYards)} yd · rotation nudge ${num(h.source.bearingNudge, 0).toFixed(1)}° · `
+    + `${Math.round(h.lengthYards)} yd along the fairway`
+    + (nShots ? ` (${nShots} shot point${nShots > 1 ? 's' : ''})` : ' (straight)')
+    + ` · rotation nudge ${num(h.source.bearingNudge, 0).toFixed(1)}° · `
     + `zoom nudge ${num(h.source.zoomNudge, 0).toFixed(2)}`;
 }
 
@@ -417,23 +469,52 @@ function setPlacing(which) {
 function onGeoClick(e) {
   if (!placing) return;
   const h = hole();
-  if (!h.source) h.source = { kind: 'satellite', tee: null, green: null, bearingNudge: 0, zoomNudge: 0 };
-  h.source[placing] = { lat: e.latlng.lat, lng: e.latlng.lng };
-  const done = placing;
-  placing = (done === 'tee' && !h.source.green) ? 'green' : null;
+  if (!h.source) h.source = { kind: 'satellite', tee: null, green: null, shots: [], bearingNudge: 0, zoomNudge: 0 };
+  if (!Array.isArray(h.source.shots)) h.source.shots = [];
+
+  const pt = { lat: e.latlng.lat, lng: e.latlng.lng };
+  let msg;
+
+  if (placing === 'shot') {
+    h.source.shots.push(pt);
+    msg = `Shot point S${h.source.shots.length} placed.`;
+    placing = null;
+  } else {
+    const done = placing;
+    h.source[done] = pt;
+    // Chain tee -> green, but the marker for the tee is drawn immediately
+    // below either way, so you can see it landed.
+    placing = (done === 'tee' && !h.source.green) ? 'green' : null;
+    msg = placing ? 'Tee placed — now click the top of the green.'
+                  : `${done === 'tee' ? 'Tee' : 'Green'} placed.`;
+  }
+
+  recomputeLength();
+  drawGeo();                       // renders the new pin right away
+  if (holeHasSource(h)) frameGeo();
+  refreshUi();
+  markDirty(msg);
+}
+
+function clearEndpoints() {
+  if (!window.confirm('Clear the tee, green and any shot points for this hole?')) return;
+  const h = hole();
+  h.source = { kind: 'satellite', tee: null, green: null, shots: [], bearingNudge: 0, zoomNudge: 0 };
+  drawGeo(); frameGeo(); refreshUi(); populateHoleSelect();
+  markDirty('Tee and green cleared.');
+}
+
+function removeLastShot() {
+  const h = hole();
+  const shots = (h.source && h.source.shots) || [];
+  if (!shots.length) { setStatus('No shot points to remove.'); return; }
+  const n = shots.length;
+  shots.pop();
   recomputeLength();
   drawGeo();
   if (holeHasSource(h)) frameGeo();
   refreshUi();
-  markDirty(placing ? 'Tee placed. Now click the top of the green.' : `${done === 'tee' ? 'Tee' : 'Green'} placed.`);
-}
-
-function clearEndpoints() {
-  if (!window.confirm('Clear the tee and green pins for this hole?')) return;
-  const h = hole();
-  h.source = { kind: 'satellite', tee: null, green: null, bearingNudge: 0, zoomNudge: 0 };
-  drawGeo(); frameGeo(); refreshUi(); populateHoleSelect();
-  markDirty('Tee and green cleared.');
+  markDirty(`Removed shot point S${n}.`);
 }
 
 function rotateBy(d) {
@@ -480,6 +561,7 @@ async function captureCurrentHole() {
   try {
     const res = await captureHoleImage({
       tee: h.source.tee, green: h.source.green,
+      shots: h.source.shots || [],
       bearingNudge: num(h.source.bearingNudge, 0),
       zoomNudge: num(h.source.zoomNudge, 0)
     });
@@ -488,9 +570,10 @@ async function captureCurrentHole() {
     const filename = `${key}.jpg`;
     h.lengthYards = res.lengthYards;
     h.image = {
-      src: `${IMAGE_DIR}/${filename}`,
+      src: IMAGE_BASE + filename,
       width: res.image.width, height: res.image.height,
-      tee: res.image.tee, green: res.image.green
+      tee: res.image.tee, green: res.image.green,
+      shots: res.image.shots || []
     };
     h.imageReady = false;   // becomes true when you sign it off
 
@@ -502,8 +585,9 @@ async function captureCurrentHole() {
     const extra = [];
     if (res.tilesFailed) extra.push(`${res.tilesFailed} tile(s) failed to load`);
     if (res.downsized) extra.push(`sized ${res.image.width}×${res.image.height} to stay at native imagery detail`);
+    if (res.zoomedOutToFit) extra.push(`zoomed out ${res.zoomedOutToFit}× so the dogleg fits`);
     setStatus(`Captured ${filename}${extra.length ? ' — ' + extra.join('; ') : ''}. `
-      + `Save it into ${IMAGE_DIR}/ in the repo.`);
+      + `Save it into ${IMAGE_DIR || 'the site folder'} in the repo.`);
     markDirty();
     refreshUi();
   } catch (err) {
@@ -524,13 +608,15 @@ function uploadImage(e) {
     const key = holeKey(currentCourse, h.number);
     const ext = (file.name.match(/\.(jpe?g|png|webp)$/i) || ['.jpg'])[0].toLowerCase();
     const keepTee = h.image && h.image.tee;
+    const keepShots = (h.image && h.image.shots) || [];
     h.image = {
-      src: `${IMAGE_DIR}/${key}${ext}`,
+      src: IMAGE_BASE + key + ext,
       width: probe.naturalWidth, height: probe.naturalHeight,
       // Carry the old marks over as a starting point; otherwise assume the
       // standard framing and let them be dragged.
       tee: keepTee ? h.image.tee : { x: CAPTURE_PAD_FRAC, y: 0.5 },
-      green: keepTee ? h.image.green : { x: 1 - CAPTURE_PAD_FRAC, y: 0.5 }
+      green: keepTee ? h.image.green : { x: 1 - CAPTURE_PAD_FRAC, y: 0.5 },
+      shots: keepShots
     };
     h.imageReady = false;
     if (pendingImages[key]) URL.revokeObjectURL(pendingImages[key]);
@@ -615,6 +701,7 @@ function drawImageLayers() {
 
   if (imgEndpoints) {
     [imgEndpoints.line, imgEndpoints.tee, imgEndpoints.green]
+      .concat(imgEndpoints.shots || [])
       .forEach(l => l && imgMap.removeLayer(l));
     imgEndpoints = null;
   }
@@ -625,6 +712,7 @@ function drawImageLayers() {
   if (imgEndpoints) {
     bindEndpointDrag(imgEndpoints.tee, 'tee');
     bindEndpointDrag(imgEndpoints.green, 'green');
+    (imgEndpoints.shots || []).forEach((m, i) => bindShotDrag(m, i));
   }
 
   (h.marshals || []).forEach((spot, i) => {
@@ -648,14 +736,28 @@ function drawImageLayers() {
 /* Dragging the T or G on the image re-defines the axis. Every station keeps
    its (t, offsetYards) and so moves with it -- this is what makes swapping
    an image cheap. */
-function bindEndpointDrag(marker, which) {
-  marker.on('drag', () => {
-    if (imgEndpoints) {
-      imgEndpoints.line.setLatLngs([
-        imgEndpoints.tee.getLatLng(), imgEndpoints.green.getLatLng()
-      ]);
-    }
+function redrawImageLine() {
+  if (!imgEndpoints || !imgEndpoints.line) return;
+  imgEndpoints.line.setLatLngs([imgEndpoints.tee.getLatLng()]
+    .concat((imgEndpoints.shots || []).map(m => m.getLatLng()))
+    .concat([imgEndpoints.green.getLatLng()]));
+}
+
+/* Dragging a shot point reshapes the fairway path, so stations measured along
+   it move with it -- same principle as re-marking the tee or green. */
+function bindShotDrag(marker, i) {
+  marker.on('drag', redrawImageLine);
+  marker.on('dragend', () => {
+    const h = hole();
+    const p = latLngToImg(h, marker.getLatLng());
+    h.image.shots[i] = { x: p.x / h.image.width, y: p.y / h.image.height };
+    drawImageLayers();
+    markDirty(`Moved S${i + 1} on the image — stations followed the path.`);
   });
+}
+
+function bindEndpointDrag(marker, which) {
+  marker.on('drag', redrawImageLine);
   marker.on('dragend', () => {
     const h = hole();
     const p = latLngToImg(h, marker.getLatLng());
@@ -811,6 +913,12 @@ function refreshUi() {
   pg.textContent = (h.source && h.source.green) ? 'Move green pin' : 'Place green pin';
   pt.classList.toggle('is-active', placing === 'tee');
   pg.classList.toggle('is-active', placing === 'green');
+
+  const nShots = ((h.source && h.source.shots) || []).length;
+  const ps = document.getElementById('place-shot');
+  ps.textContent = `Add shot point S${nShots + 1}`;
+  ps.classList.toggle('is-active', placing === 'shot');
+  document.getElementById('remove-shot').disabled = !nShots;
   document.getElementById('capture-hole').disabled = !hasSource;
   document.getElementById('image-ready-toggle').checked = !!h.imageReady;
 
@@ -877,7 +985,7 @@ function exportAll() {
     + 'const HOLES_DATA = ' + JSON.stringify(state, null, 2) + ';\n',
     'text/javascript');
   setStatus('Exported holes-data.js — replace js/holes-data.js and commit it, '
-    + 'along with any new images in ' + IMAGE_DIR + '/.');
+    + 'along with any new images in ' + (IMAGE_DIR || 'the site folder') + '.');
 }
 
 function importFiles(e) {

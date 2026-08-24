@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Preflight check — Oak Hill Marshal Guide</title>
+<meta name="robots" content="noindex, nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body class="admin-page">
+
+<div class="admin-banner">PREFLIGHT — setup check, not part of the marshal site</div>
+
+<header class="admin-header">
+  <div class="admin-header__text">
+    <span class="admin-header__eyebrow">Marshal Guide</span>
+    <h1 class="admin-header__title">Preflight check</h1>
+  </div>
+</header>
+
+<div class="admin-panel">
+  <p class="admin-instructions">
+    Checks that every hole image named in <code>js/holes-data.js</code> actually loads from where
+    the site expects it. Run it locally before you push, then again on the live URL after
+    deploying — <strong>file names are case-sensitive on GitHub Pages but not on Windows</strong>,
+    so a file that works on your machine can still 404 once published. That's the failure this
+    page exists to catch.
+  </p>
+  <p class="admin-status" id="summary">Checking…</p>
+  <div id="results"></div>
+</div>
+
+<footer class="site-footer"><p>Not linked from the marshal pages.</p></footer>
+
+<script src="js/holes-data.js"></script>
+<script src="js/app.js"></script>
+<script>
+/* Images are loaded with Image() rather than fetch() so this page also works
+   when opened straight off disk as a file:// URL, where fetch is blocked. */
+function loadCheck(src) {
+  return new Promise(resolve => {
+    const img = new Image();
+    img.onload = () => resolve({ ok: true, w: img.naturalWidth, h: img.naturalHeight });
+    img.onerror = () => resolve({ ok: false });
+    img.src = src + (src.includes('?') ? '&' : '?') + 'pf=' + Date.now(); // dodge cache
+  });
+}
+
+function hasImage(h) {
+  const i = h && h.image;
+  return !!(i && i.src && i.width && i.height && i.tee && i.green);
+}
+
+(async function () {
+  const rows = [];
+  let ready = 0, brokenImage = 0, noImage = 0, noStations = 0, dimMismatch = 0, total = 0;
+
+  for (const key of ['east', 'west']) {
+    const course = HOLES_DATA[key];
+    if (!course) continue;
+    const holeRows = [];
+
+    for (const h of course.holes) {
+      total++;
+      const nStations = (h.marshals || []).length;
+      let state, detail;
+
+      if (!hasImage(h)) {
+        state = 'no-image';
+        noImage++;
+        detail = 'No image recorded — stage 1 not done';
+      } else {
+        const res = await loadCheck(resolveImageSrc(h.image.src));
+        if (!res.ok) {
+          state = 'broken';
+          brokenImage++;
+          detail = `<strong>${resolveImageSrc(h.image.src)}</strong> did not load — file missing, or its name differs in letter case`;
+        } else if (res.w !== h.image.width || res.h !== h.image.height) {
+          state = 'mismatch';
+          dimMismatch++;
+          detail = `${resolveImageSrc(h.image.src)} loads, but is ${res.w}×${res.h} while the data says `
+                 + `${h.image.width}×${h.image.height} — marshal spots will be misplaced. `
+                 + `Re-capture, or re-mark the tee and green in stage 2.`;
+        } else if (!nStations) {
+          state = 'no-stations';
+          noStations++;
+          detail = `${resolveImageSrc(h.image.src)} loads — but no marshal stations yet (stage 2 to do)`;
+        } else {
+          state = 'ready';
+          ready++;
+          detail = `${resolveImageSrc(h.image.src)} · ${res.w}×${res.h} · ${nStations} station${nStations === 1 ? '' : 's'}`;
+        }
+      }
+      holeRows.push({ n: h.number, state, detail });
+    }
+    rows.push({ name: course.name, holes: holeRows });
+  }
+
+  const LABEL = {
+    ready: ['✓', 'Ready'],
+    'no-stations': ['•', 'No stations'],
+    'no-image': ['·', 'No image'],
+    broken: ['✕', 'Image missing'],
+    mismatch: ['!', 'Size mismatch']
+  };
+
+  document.getElementById('results').innerHTML = rows.map(c => `
+    <h2 class="hole-info__heading" style="margin-top:22px">${c.name}</h2>
+    <ul class="marshal-list">
+      ${c.holes.map(r => `
+        <li class="marshal-list__item pf-row pf-row--${r.state}">
+          <span class="pf-badge">${LABEL[r.state][0]}</span>
+          <span class="pf-hole">Hole ${r.n}</span>
+          <span class="pf-detail"><strong>${LABEL[r.state][1]}</strong> — ${r.detail}</span>
+        </li>`).join('')}
+    </ul>`).join('');
+
+  const problems = brokenImage + dimMismatch;
+  const s = document.getElementById('summary');
+  s.innerHTML =
+    `<strong>${ready}</strong> of ${total} holes fully ready · `
+    + `${noStations} awaiting stations · ${noImage} without an image · `
+    + `<strong>${problems}</strong> broken`;
+  s.style.color = problems ? '#C0392B' : (ready ? '#2F5B41' : '#6a5533');
+
+  if (problems) {
+    s.innerHTML += '<br>Fix the broken rows before demoing — those holes will show an empty '
+      + 'frame. On Windows, check the file names match exactly, including capitals.';
+  } else if (ready) {
+    s.innerHTML += '<br>Every referenced image loads correctly.';
+  }
+})();
+</script>
+</body>
+</html>
