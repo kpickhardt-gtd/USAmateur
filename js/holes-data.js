@@ -1,5 +1,5 @@
 // Hole images and marshal stations.
-// Saved from admin.html on 2026-08-24T23:53:25.011Z
+// Saved from admin.html on 2026-08-24T23:55:02.096Z
 const HOLES_DATA = {
   "east": {
     "name": "Oak Hill East",
@@ -138,15 +138,35 @@ const HOLES_DATA = {
         ],
         "source": {
           "kind": "satellite",
-          "tee": null,
-          "green": null,
+          "tee": {
+            "lat": 43.112663402810824,
+            "lng": -77.52294051100836
+          },
+          "green": {
+            "lat": 43.11408963013404,
+            "lng": -77.52472249893661
+          },
           "bearingNudge": 0,
           "zoomNudge": 0,
           "shots": []
         },
-        "image": null,
-        "imageReady": false,
-        "spotsDone": false
+        "image": {
+          "src": "east-03.jpg",
+          "width": 1761,
+          "height": 991,
+          "tee": {
+            "x": 0.08000000000234507,
+            "y": 0.5000000000038008
+          },
+          "green": {
+            "x": 0.9200000000023452,
+            "y": 0.5000000000038011
+          },
+          "shots": []
+        },
+        "imageReady": true,
+        "spotsDone": false,
+        "lengthYards": 234.74119900324487
       },
       {
         "number": 4,
@@ -166,15 +186,27 @@ const HOLES_DATA = {
         ],
         "source": {
           "kind": "satellite",
-          "tee": null,
-          "green": null,
+          "tee": {
+            "lat": 43.1136088107109,
+            "lng": -77.52332726156317
+          },
+          "green": {
+            "lat": 43.118232104027925,
+            "lng": -77.52574475153469
+          },
           "bearingNudge": 0,
           "zoomNudge": 0,
-          "shots": []
+          "shots": [
+            {
+              "lat": 43.1157188649917,
+              "lng": -77.52534707291542
+            }
+          ]
         },
         "image": null,
         "imageReady": false,
-        "spotsDone": false
+        "spotsDone": false,
+        "lengthYards": 620.6792322916119
       },
       {
         "number": 5,
