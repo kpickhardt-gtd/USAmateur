@@ -7,8 +7,8 @@
 <meta name="robots" content="noindex, nofollow">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="vendor/leaflet/leaflet.css"/>
-<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="leaflet.css"/>
+<link rel="stylesheet" href="style.css">
 </head>
 <body class="admin-page">
 
@@ -130,7 +130,7 @@
   <button type="button" class="course-btn course-btn--east" id="capture-hole">
     <span class="course-btn__label">Satellite &rarr; image</span>
     <span class="course-btn__name">Capture hole image</span>
-    <span class="course-btn__meta">downloads a .jpg to save in images/holes/</span>
+    <span class="course-btn__meta">downloads a .jpg to save beside these files</span>
   </button>
 
   <label class="admin-import">
@@ -182,9 +182,59 @@
   </div>
 </section>
 
-<!-- Export / import -->
+<!-- Save straight to GitHub -->
+<section class="admin-panel admin-export gh-panel">
+  <h2 class="hole-info__heading">Save to GitHub</h2>
+  <p class="gh-unsaved" id="gh-unsaved"></p>
+
+  <div class="gh-grid">
+    <label>Owner<input type="text" id="gh-owner" placeholder="your-github-username" autocomplete="off"></label>
+    <label>Repository<input type="text" id="gh-repo" placeholder="oak-hill-marshals" autocomplete="off"></label>
+    <label>Branch<input type="text" id="gh-branch" placeholder="main" autocomplete="off"></label>
+  </div>
+
+  <label class="gh-token-row">
+    <span class="admin-import__label">Access token</span>
+    <input type="password" id="gh-token" placeholder="github_pat_…" autocomplete="off" spellcheck="false">
+  </label>
+  <label class="admin-check">
+    <input type="checkbox" id="gh-remember">
+    <span>Remember on this device (otherwise it's forgotten when you close the tab)</span>
+  </label>
+  <label class="admin-check">
+    <input type="checkbox" id="gh-autosave">
+    <span>Auto-save a few seconds after I stop editing</span>
+  </label>
+
+  <div class="admin-btn-row">
+    <button type="button" class="pager-btn" id="gh-test">Test connection</button>
+    <button type="button" class="pager-btn pager-btn--all" id="gh-forget">Forget token</button>
+  </div>
+
+  <button type="button" class="course-btn course-btn--east" id="gh-save">
+    <span class="course-btn__label">Straight to the repository</span>
+    <span class="course-btn__name">Save to GitHub</span>
+    <span class="course-btn__meta">commits the data file and any new images in one go</span>
+  </button>
+
+  <p class="admin-status gh-status" id="gh-status"></p>
+
+  <p class="hole-info__note">
+    Create a <strong>fine-grained personal access token</strong> at
+    <em>github.com → Settings → Developer settings → Personal access tokens</em>, limited to this
+    one repository, with <strong>Contents: Read and write</strong>. It is stored in this browser
+    only — never written into any file this tool produces, and never committed. Anyone holding it
+    can write to the repo, so don't tick "remember" on a shared computer.
+  </p>
+  <p class="hole-info__note">
+    Marshal pages are unaffected by any of this: they stay plain static files and never call an
+    API, so they keep working on poor course signal.
+  </p>
+</section>
+
+<!-- Manual export / import (still here as a backup) -->
 <section class="admin-panel admin-export">
-  <h2 class="hole-info__heading">Save your work</h2>
+  <h2 class="hole-info__heading">Manual backup</h2>
   <p class="admin-status" id="admin-status"></p>
 
   <button type="button" class="course-btn course-btn--east" id="export-hole">
@@ -196,7 +246,7 @@
   <button type="button" class="course-btn course-btn--west" id="export-all">
     <span class="course-btn__label">Everything</span>
     <span class="course-btn__name">Export holes-data.js</span>
-    <span class="course-btn__meta">replaces js/holes-data.js to publish the site</span>
+    <span class="course-btn__meta">replaces holes-data.js to publish the site</span>
   </button>
 
   <label class="admin-import">
@@ -215,7 +265,7 @@
   </p>
 
   <p class="hole-info__note">
-    Captured images download to your computer — save them into <code>images/holes/</code> in the
+    Captured images download to your computer — save them into this folder in the
     repo. The data itself only reaches the live site when you export
     <code>holes-data.js</code> and commit it.
   </p>
@@ -224,12 +274,13 @@
 </div><!-- /admin-layout__panels -->
 </div><!-- /admin-layout -->
 
-<script src="vendor/leaflet/leaflet.js"></script>
-<script src="vendor/leaflet/leaflet-rotate.js"></script>
-<script src="js/holes-data.js"></script>
-<script src="js/app.js"></script>
-<script src="js/capture.js"></script>
-<script src="js/admin.js"></script>
+<script src="leaflet.js"></script>
+<script src="leaflet-rotate.js"></script>
+<script src="holes-data.js"></script>
+<script src="app.js"></script>
+<script src="capture.js"></script>
+<script src="github-sync.js"></script>
+<script src="admin.js"></script>
 <script>
   if (!mapLibraryMissing('geo-map')) initAdmin();
 </script>

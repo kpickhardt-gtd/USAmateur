@@ -1,0 +1,21 @@
+UPDATE PACKAGE — Oak Hill Marshal Guide
+=======================================
+
+These are CODE files only. There is deliberately NO holes-data.js and NO hole
+images in here, because those are YOUR data and are already correct in the
+repository. Uploading this set cannot lose your East course work.
+
+WHAT TO DO
+  1. Unzip.
+  2. On your repo's main page: Add file -> Upload files.
+  3. Select ALL the files in this folder and drag them in.
+     GitHub will show them as changes to existing files -- that's right.
+  4. Commit.
+
+Roughly a minute later your live site is running the new code, and the admin
+page has a "Save to GitHub" panel at the bottom.
+
+Then follow the testing steps Claude gave you, starting with Test connection.
+
+If anything goes wrong, every one of these files is versioned -- open the
+commit on GitHub and click Revert to put the old code back.

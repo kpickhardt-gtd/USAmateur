@@ -7,7 +7,7 @@
 <meta name="robots" content="noindex, nofollow">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="style.css">
 </head>
 <body class="admin-page">
 
@@ -22,7 +22,7 @@
 
 <div class="admin-panel">
   <p class="admin-instructions">
-    Checks that every hole image named in <code>js/holes-data.js</code> actually loads from where
+    Checks that every hole image named in <code>holes-data.js</code> actually loads from where
     the site expects it. Run it locally before you push, then again on the live URL after
     deploying — <strong>file names are case-sensitive on GitHub Pages but not on Windows</strong>,
     so a file that works on your machine can still 404 once published. That's the failure this
@@ -34,8 +34,8 @@
 
 <footer class="site-footer"><p>Not linked from the marshal pages.</p></footer>
 
-<script src="js/holes-data.js"></script>
-<script src="js/app.js"></script>
+<script src="holes-data.js"></script>
+<script src="app.js"></script>
 <script>
 /* Images are loaded with Image() rather than fetch() so this page also works
    when opened straight off disk as a file:// URL, where fetch is blocked. */

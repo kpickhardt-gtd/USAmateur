@@ -257,10 +257,133 @@ a { text-decoration: none; color: inherit; }
 }
 
 /* ---------- Hole detail / map page ---------- */
-#map {
+/* The map's shape follows the hole's orientation: tall on phones (hole runs
+   bottom-to-top) and wide on computers (hole runs left-to-right). The 700px
+   breakpoint must match WIDE_LAYOUT_MIN_PX in js/app.js. */
+.map-frame {
+  position: relative;
   width: 100%;
-  height: 46vh;
-  min-height: 260px;
+}
+
+#map, #geo-map, #img-map {
+  width: 100%;
+  height: 60vh;
+  min-height: 340px;
+  background: #d8d4c8;
+}
+
+@media (min-width: 700px) {
+  .map-frame {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 0 16px;
+  }
+  #map, #geo-map, #img-map {
+    height: 56vh;
+    min-height: 380px;
+    border-radius: var(--radius);
+  }
+}
+
+/* Admin's "phone" preview: squeeze the map to a portrait, phone-ish frame
+   so the framing shown is the framing marshals will actually get. */
+/* Admin's phone preview: constrain to a portrait, phone-shaped frame. */
+.map-frame--narrow .map-frame,
+.map-frame--narrow #img-map {
+  max-width: 420px;
+  margin: 0 auto;
+}
+.map-frame--narrow #img-map {
+  height: 64vh;
+  min-height: 420px;
+}
+
+.map-recenter {
+  position: absolute;
+  right: 14px;
+  bottom: 14px;
+  z-index: 500;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 8px 12px;
+  border: none;
+  border-radius: 999px;
+  background: rgba(22,53,42,0.9);
+  color: var(--cream);
+  cursor: pointer;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.35);
+}
+.theme-west .map-recenter { background: rgba(107,74,47,0.92); }
+@media (min-width: 700px) {
+  .map-recenter { right: 30px; }
+}
+
+/* Tee / green endpoint markers */
+.hole-endpoint__mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  font-family: 'Oswald', sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.45);
+}
+.hole-endpoint__mark--tee {
+  background: var(--cream);
+  color: var(--fairway);
+  border: 2px solid var(--fairway);
+}
+.hole-endpoint__mark--green {
+  background: var(--turf);
+  color: var(--cream);
+  border: 2px solid var(--cream);
+}
+
+/* Shown inside #map when Leaflet itself failed to load */
+.map-message {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #e8e4d8;
+  padding: 20px;
+}
+.map-message__inner {
+  max-width: 340px;
+  text-align: center;
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: #5b6459;
+}
+.map-message__inner strong {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--flag);
+}
+.map-message__inner code {
+  background: #fff;
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+
+/* Shown over the map when satellite tiles can't be reached. Anchored to the
+   top so it never collides with the Recentre button in the bottom corner. */
+.map-offline-note {
+  position: absolute;
+  left: 60px;
+  right: 10px;
+  top: 10px;
+  z-index: 450;
+  background: rgba(27,35,30,0.88);
+  color: #f2eee2;
+  font-size: 12px;
+  line-height: 1.45;
+  padding: 8px 10px;
+  border-radius: var(--radius);
+  pointer-events: none;
 }
 
 .marshal-pin__dot {
@@ -498,11 +621,425 @@ a { text-decoration: none; color: inherit; }
 }
 
 .admin-export {
-  max-width: 560px;
-  margin: 8px auto 40px;
-  padding: 16px 20px 0;
+  margin-bottom: 40px;
   display: flex;
   flex-direction: column;
+  gap: 12px;
+}
+
+/* ---------- Admin: draft-vs-file conflict notice ---------- */
+.draft-conflict {
+  max-width: 980px;
+  margin: 14px auto 0;
+  padding: 13px 15px;
+  background: #fdf3e7;
+  border: 1px solid #e6d3b3;
+  border-left: 4px solid var(--brass);
+  border-radius: var(--radius);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+}
+.draft-conflict__text {
+  flex: 1;
+  min-width: 240px;
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: #6a5533;
+}
+.draft-conflict__text code {
+  background: #fff;
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+.draft-conflict__actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* An author `display` rule beats the UA stylesheet's [hidden]{display:none},
+   so anything toggled via the hidden attribute needs this guard. */
+[hidden] { display: none !important; }
+
+/* ---------- Admin: two-column workspace on wide screens ----------
+   Mapping 36 holes means a lot of small adjustments, so on a desktop the
+   map stays put on the left while the step controls scroll on the right. */
+@media (min-width: 1040px) {
+  .admin-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1.4fr) minmax(360px, 0.9fr);
+    gap: 0 28px;
+    align-items: start;
+    max-width: 1560px;
+    margin: 0 auto;
+    padding: 0 24px;
+  }
+  .admin-layout__map { position: sticky; top: 14px; }
+  .admin-layout .map-frame { max-width: none; margin: 0; padding: 0; }
+  /* Sized so the framing controls underneath stay above the fold on a
+     laptop screen -- you shouldn't have to scroll to nudge rotation. */
+  .admin-layout__map #map,
+  .admin-layout__map #geo-map,
+  .admin-layout__map #img-map { height: 54vh; min-height: 380px; }
+  .admin-layout .admin-preview-row,
+  .admin-layout .framing-readout,
+  .admin-layout .admin-panel {
+    max-width: none;
+    margin-left: 0;
+    margin-right: 0;
+    padding-left: 0;
+    padding-right: 0;
+  }
+  .admin-layout .admin-warning { max-width: none; }
+  .admin-layout__panels { padding-bottom: 40px; }
+}
+
+/* ---------- Admin: step tabs ---------- */
+.admin-steps {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 14px 20px 0;
+  display: flex;
   gap: 10px;
 }
-.admin-export__row { display: flex; }
+.admin-step-tab {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  padding: 10px 12px;
+  border: 1px solid #d8d3c3;
+  border-radius: var(--radius);
+  background: #fff;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.admin-step-tab.is-active {
+  background: var(--fairway);
+  border-color: var(--fairway);
+  color: var(--cream);
+}
+.admin-step-tab__num {
+  font-family: 'Oswald', sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  opacity: 0.65;
+}
+.admin-step-tab__label {
+  font-family: 'Oswald', sans-serif;
+  font-size: 16px;
+  font-weight: 600;
+}
+.admin-step-tab__hint { font-size: 11.5px; opacity: 0.7; }
+
+/* ---------- Admin: preview toggle ---------- */
+.admin-preview-row {
+  max-width: 720px;
+  margin: 14px auto 10px;
+  padding: 0 20px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+.admin-preview-row__label {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--turf);
+}
+.admin-toggle-group { display: flex; gap: 6px; flex-wrap: wrap; }
+.admin-toggle {
+  font: inherit;
+  font-size: 12.5px;
+  padding: 7px 11px;
+  border: 1px solid #d8d3c3;
+  border-radius: 999px;
+  background: #fff;
+  color: var(--turf);
+  cursor: pointer;
+}
+.admin-toggle.is-active {
+  background: var(--turf);
+  border-color: var(--turf);
+  color: var(--cream);
+}
+
+/* ---------- Admin: framing readout + controls ---------- */
+.framing-readout {
+  max-width: 720px;
+  margin: 10px auto 0;
+  padding: 0 20px;
+  font-size: 12px;
+  color: #6b756e;
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-framing {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 16px;
+}
+.admin-framing__group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.admin-framing__label {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--turf);
+  margin-right: 2px;
+}
+.admin-mini-btn {
+  font: inherit;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  min-width: 42px;
+  padding: 7px 8px;
+  border: 1px solid #d8d3c3;
+  border-radius: var(--radius);
+  background: #fff;
+  color: var(--ink);
+  cursor: pointer;
+}
+.admin-mini-btn:active { background: #efeade; }
+
+/* ---------- Admin: panels & misc ---------- */
+.admin-panel {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 16px 20px 0;
+}
+
+.admin-btn-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.admin-check {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-top: 14px;
+  font-size: 14px;
+  color: #3a423c;
+  cursor: pointer;
+}
+.admin-check input { width: 18px; height: 18px; accent-color: var(--turf); }
+
+.admin-warning {
+  background: #fdf3e7;
+  border: 1px solid #e6d3b3;
+  border-left: 4px solid var(--brass);
+  border-radius: var(--radius);
+  padding: 11px 13px;
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: #6a5533;
+  max-width: 720px;
+  margin: 10px auto 0;
+}
+
+.admin-status {
+  min-height: 18px;
+  font-size: 13px;
+  color: var(--turf);
+  font-weight: 500;
+  margin: 0 0 4px;
+}
+
+.admin-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 11.5px;
+  opacity: 0.85;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.admin-progress__row strong { font-weight: 600; }
+
+.admin-import {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 12px;
+  border: 1px dashed #cfc9b6;
+  border-radius: var(--radius);
+  background: #fbf9f2;
+}
+.admin-import__label {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--turf);
+}
+.admin-import__hint { font-size: 12px; color: #7a8177; line-height: 1.45; }
+
+.admin-page .course-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.pager-btn.is-active {
+  background: var(--flag);
+  color: #fff;
+  border-color: var(--flag);
+}
+
+/* Empty-state row inside a marshal list */
+.marshal-list__item--empty {
+  color: #7a8177;
+  font-size: 13.5px;
+  justify-content: center;
+  background: #fbf9f2;
+}
+
+/* Hole tiles with no data yet */
+.hole-tile--pending { opacity: 0.55; }
+
+/* ---------- Stage 2: station position readout ---------- */
+.admin-spot-pos {
+  font-size: 11.5px;
+  color: #7a8177;
+  font-variant-numeric: tabular-nums;
+  margin-right: auto;
+}
+.admin-spot-radius { flex-wrap: wrap; }
+
+/* Sub-line under a station's description on the marshal page */
+.marshal-list__meta {
+  display: block;
+  font-size: 12px;
+  color: #7a8177;
+  margin-top: 2px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The hole image sits on a dark ground so letterboxing reads as deliberate */
+#img-map, .hole-page #map { background: #23281f; }
+
+/* ---------- Course grid: setup states ---------- */
+/* Amber = image captured, marshal stations still to place. Distinct from
+   fully-pending so setup progress is legible at a glance. */
+.hole-tile--no-stations {
+  opacity: 0.9;
+  border-color: var(--brass);
+  background: #6b5a2f;
+}
+.theme-west .hole-tile--no-stations { background: #6b5a2f; }
+
+.grid-summary {
+  margin: 20px auto 0;
+  max-width: 480px;
+  padding: 11px 13px;
+  background: #fdf3e7;
+  border: 1px solid #e6d3b3;
+  border-left: 4px solid var(--brass);
+  border-radius: var(--radius);
+  font-size: 13px;
+  line-height: 1.5;
+  color: #6a5533;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Preflight check rows ---------- */
+.pf-row { align-items: center; gap: 10px; }
+.pf-badge {
+  flex-shrink: 0;
+  width: 22px; height: 22px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: 12px; color: #fff;
+  background: #9aa39b;
+}
+.pf-hole {
+  flex-shrink: 0;
+  min-width: 62px;
+  font-family: 'Oswald', sans-serif;
+  font-weight: 600;
+}
+.pf-detail { font-size: 13px; line-height: 1.45; color: #4a534b; }
+.pf-row--ready       .pf-badge { background: var(--turf); }
+.pf-row--no-stations .pf-badge { background: var(--brass); }
+.pf-row--no-image    .pf-badge { background: #c3c8c1; color: #5b6459; }
+.pf-row--broken      .pf-badge { background: var(--flag); }
+.pf-row--mismatch    .pf-badge { background: var(--flag); }
+.pf-row--broken, .pf-row--mismatch { border-color: #e3b6b0; background: #fdf0ee; }
+
+/* ---------- Shot points (dogleg waypoints) ---------- */
+.hole-endpoint__mark--shot {
+  background: var(--brass);
+  color: #2a2110;
+  border: 2px solid var(--cream);
+  font-size: 11px;
+  letter-spacing: -0.02em;
+}
+
+/* ---------- Admin link in the welcome footer ---------- */
+.site-footer__admin {
+  margin-top: 6px;
+  font-size: 11.5px;
+  color: #9aa39b;
+}
+.site-footer__admin a {
+  color: var(--turf);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* ---------- GitHub sync panel ---------- */
+.gh-panel { border-top: 1px solid #e4e0d3; padding-top: 18px; }
+
+.gh-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.gh-grid label, .gh-token-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--turf);
+}
+.gh-grid input, .gh-token-row input {
+  font: inherit;
+  font-size: 14px;
+  text-transform: none;
+  letter-spacing: 0;
+  padding: 8px 10px;
+  border: 1px solid #d8d3c3;
+  border-radius: var(--radius);
+  background: #fff;
+  color: var(--ink);
+  width: 100%;
+}
+.gh-token-row { margin-bottom: 10px; }
+
+.gh-unsaved {
+  font-size: 12.5px;
+  font-weight: 600;
+  margin: 0 0 12px;
+  padding: 7px 10px;
+  border-radius: var(--radius);
+  background: #f1ece0;
+  color: #6b756e;
+}
+.gh-unsaved--dirty { background: #fdf3e7; color: #6a5533; }
+.gh-unsaved--clean { background: #eaf1ea; color: var(--turf); }
+.gh-unsaved--busy  { background: #e8eef4; color: #3d5a72; }
+
+.gh-status { min-height: 18px; }
+.gh-status--good { color: var(--turf); }
+.gh-status--bad  { color: var(--flag); }
