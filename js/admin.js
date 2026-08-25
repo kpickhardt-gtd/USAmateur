@@ -118,6 +118,90 @@ function checkDraftConflict() {
   banner.hidden = false;
 }
 
+/* THE ONES THE SWEEP CAN'T PROVE
+   ------------------------------
+   A hole that DOES have an image could legitimately carry a station you
+   placed, so the provenance argument used in migrateState doesn't apply and
+   nothing here is deleted automatically.
+
+   What is left is a fingerprint rather than a proof. The shipped placeholders
+   all had `radius: 12` in METRES, which converts to 13.123… yards; a station
+   placed by hand starts at exactly 13 (DEFAULT_RADIUS_YARDS) and the nudge
+   buttons only ever add or subtract whole yards. A lone, unsigned station
+   carrying that fractional radius is therefore almost certainly a leftover --
+   but "almost certainly" is not good enough to delete someone's work, so
+   these are listed and you decide. */
+const LEGACY_RADIUS_YARDS = metersToYards(12);
+
+function looksLikeLegacyPlaceholder(s) {
+  return Math.abs(num(s.radiusYards, 0) - LEGACY_RADIUS_YARDS) < 1e-6;
+}
+
+function suspectPlaceholders() {
+  const hits = [];
+  ['east', 'west'].forEach(k => ((state[k] && state[k].holes) || []).forEach(h => {
+    if (h.spotsDone) return;                       // you signed it off; it's real
+    if (h.marshals.length !== 1) return;           // you've been working on it
+    if (!looksLikeLegacyPlaceholder(h.marshals[0])) return;
+    hits.push({ course: k, number: h.number });
+  }));
+  return hits;
+}
+
+function reportPlaceholders() {
+  const banner = document.getElementById('placeholder-notice');
+  if (!banner) return;
+  const suspects = suspectPlaceholders();
+
+  if (!placeholdersRemoved && !suspects.length && !lengthsAssumed.length) {
+    banner.hidden = true; return;
+  }
+
+  const parts = [];
+  if (lengthsAssumed.length) {
+    parts.push(`<strong>${lengthsAssumed.length} hole`
+      + `${lengthsAssumed.length === 1 ? '' : 's'} had no recorded length</strong> `
+      + `(hole${lengthsAssumed.length === 1 ? ' ' : 's '}${lengthsAssumed.join(', ')}), `
+      + `so their marshal circles couldn't be drawn at all. A typical length for `
+      + `the par has been filled in and the stations now show. Positions along `
+      + `the fairway are exact; the sideways offsets and circle sizes are scaled `
+      + `from that estimate — set the tee and green on the satellite map to make `
+      + `them exact.`);
+  }
+  if (placeholdersRemoved) {
+    parts.push(`Removed <strong>${placeholdersRemoved}</strong> leftover placeholder `
+      + `station${placeholdersRemoved === 1 ? '' : 's'} from holes with no image — `
+      + `those can't have been placed by hand, so the holes are clean again. `
+      + `Save to GitHub to make that stick.`);
+  }
+  if (suspects.length) {
+    const names = suspects.map(s => `${s.course === 'east' ? 'East' : 'West'} ${s.number}`).join(', ');
+    parts.push(`<span class="placeholder-notice__ask">${suspects.length} hole`
+      + `${suspects.length === 1 ? ' has' : 's have'} a single unsigned station that looks like `
+      + `the same leftover (${names}). These holes have images, so it could be one you placed — `
+      + `your call.</span>`);
+  }
+
+  document.getElementById('placeholder-notice-text').innerHTML = parts.join('<br>');
+  document.getElementById('placeholder-remove').hidden = !suspects.length;
+  banner.hidden = false;
+}
+
+function removeSuspectPlaceholders() {
+  const suspects = suspectPlaceholders();
+  if (!suspects.length) return;
+  suspects.forEach(s => {
+    const h = state[s.course].holes.find(x => x.number === s.number);
+    if (h) { h.marshals = []; h.spotsDone = false; }
+  });
+  placeholdersRemoved = 0;
+  reportPlaceholders();
+  populateHoleSelect();
+  loadHole();
+  renderProgress();
+  markDirty(`Removed ${suspects.length} leftover station${suspects.length === 1 ? '' : 's'}.`);
+}
+
 function useFileInstead() {
   if (!window.confirm('Discard the edits stored in this browser and load js/holes-data.js?')) return;
   try { localStorage.removeItem(DRAFT_KEY); } catch (e) { /* ignore */ }
@@ -130,9 +214,20 @@ function useFileInstead() {
   setStatus('Loaded js/holes-data.js.');
 }
 
+/* Stations removed by the sweep in migrateState, so start-up can say so out
+   loud instead of quietly changing the data underneath you. */
+let placeholdersRemoved = 0;
+
+/* Holes given an assumed length because nothing recorded a real one. Their
+   stations now draw correctly, but the sideways offsets and circle sizes are
+   scaled from a guess, so it's worth saying so. */
+let lengthsAssumed = [];
+
 /* Bring older drafts up to the split schema, including converting any
    lat/lng marshal spots into axis coordinates. */
 function migrateState() {
+  placeholdersRemoved = 0;
+  lengthsAssumed = [];
   ['east', 'west'].forEach(key => {
     const course = state[key];
     if (!course || !course.holes) return;
@@ -153,10 +248,13 @@ function migrateState() {
       if (h.image && !Array.isArray(h.image.shots)) h.image.shots = [];
       if (typeof h.imageReady !== 'boolean') h.imageReady = !!h.image;
       if (typeof h.spotsDone !== 'boolean') h.spotsDone = false;
-      if (typeof h.lengthYards !== 'number' && holeHasSource(h)) {
-        h.lengthYards = metersToYards(geoDistanceMeters(h.source.tee, h.source.green));
-      }
+      // Fills the length in from satellite coordinates where they exist, and
+      // falls back to a typical length for the par where they don't. Without
+      // this, a hole built from an uploaded image has no scale and every one
+      // of its stations is silently undrawable.
+      if (ensureHoleLength(h) && holeHasImage(h)) lengthsAssumed.push(h.number);
       if (!Array.isArray(h.marshals)) h.marshals = [];
+      const cameFromLatLng = new Set();   // stations this pass converted
       h.marshals = h.marshals.map(s => {
         if (typeof s.t === 'number') {
           if (typeof s.radiusYards !== 'number') {
@@ -170,19 +268,56 @@ function migrateState() {
         // legacy lat/lng spot -> axis coords, if we have the geometry
         if (typeof s.lat === 'number' && holeHasSource(h) && h.lengthYards) {
           const conv = latLngSpotToAxis(h, s);
-          return {
+          const out = {
             t: conv.t, offsetYards: conv.offsetYards,
             radiusYards: typeof s.radius === 'number' ? metersToYards(s.radius) : DEFAULT_RADIUS_YARDS,
             label: s.label || ''
           };
+          cameFromLatLng.add(out);
+          return out;
         }
         // Can't be converted -- no geometry to project it against. DROP it
         // rather than inventing a position: a fabricated station in the middle
         // of the hole looks like real data and would send a marshal to the
-        // wrong place. The old placeholder rows land here, which is why holes
-        // that were never worked on come through clean.
+        // wrong place.
         return null;
       }).filter(Boolean);
+
+      /* THE PLACEHOLDER SWEEP
+         ---------------------
+         Blocking the fabrication path above was not enough, and it is worth
+         being precise about why. The original data shipped one placeholder
+         station per hole WITH a lat/lng on it (the clubhouse, roughly). That
+         made it convertible, so it went down the branch above and came out as
+         a perfectly well-formed axis station — indistinguishable, afterwards,
+         from one that was placed deliberately. Every one of the 36 survived.
+
+         What separates them is not their shape but their provenance: a real
+         station can only be created in stage 2, and both ways of creating one
+         are gated on the hole having an image. So a station on an image-less
+         hole cannot have been placed by hand.
+
+         That argument alone would justify emptying every image-less hole, and
+         the first version of this did. It is too sharp an instrument. It rests
+         on the current UI never clearing an image once set — true today, but
+         the whole point of the two-stage split is that images can be REPLACED,
+         and the day "re-capture this hole" clears the image first, that broad
+         sweep would silently delete real marshal work. A migration that can
+         destroy data on a future refactor is a bad trade for tidiness.
+
+         So the drop needs a second, positive reason to believe a station is a
+         leftover: either this pass just converted it from lat/lng (only the
+         shipped data was ever in that form), or it carries the fingerprint of
+         one that an earlier pass converted. A well-formed modern station on an
+         image-less hole is left alone — it shouldn't be possible, and if it
+         ever becomes possible it will be somebody's real work. */
+      if (!holeHasImage(h) && h.marshals.length) {
+        const before = h.marshals.length;
+        h.marshals = h.marshals.filter(s =>
+          !cameFromLatLng.has(s) && !looksLikeLegacyPlaceholder(s));
+        placeholdersRemoved += before - h.marshals.length;
+        if (!h.marshals.length) h.spotsDone = false;
+      }
     });
   });
 }
@@ -208,10 +343,84 @@ function latLngSpotToAxis(h, s) {
 
 /* ---------- boot ---------- */
 
+/* WHY THIS EXISTS
+   ---------------
+   Three separate times now, one exception thrown early in start-up has taken
+   the whole admin page down with it, and every time the symptom was something
+   that looked unrelated: clicks doing nothing, blank repository fields, "lost
+   the GPS map". A single try/catch around the lot would have made it one
+   symptom instead of three, but it would still have been silent.
+
+   So start-up is broken into named steps. A step that throws is caught, named
+   in a banner you can actually read, and the remaining steps still run — a
+   broken GitHub panel no longer costs you the satellite map. */
+const bootFailures = [];
+
+function bootStep(name, fn) {
+  try {
+    fn();
+    return true;
+  } catch (err) {
+    bootFailures.push({ name, err });
+    if (window.console) console.error(`[admin] start-up step "${name}" failed:`, err);
+    return false;
+  }
+}
+
+function showBootFailures() {
+  if (!bootFailures.length) return;
+  const el = document.getElementById('boot-error');
+  const list = bootFailures
+    .map(f => `${f.name}: ${f.err && f.err.message ? f.err.message : String(f.err)}`)
+    .join(' · ');
+  if (el) {
+    el.innerHTML = '<strong>Part of this page failed to start.</strong> '
+      + 'The rest still works, but tell Claude exactly what this says:<br><code></code>';
+    el.querySelector('code').textContent = list;
+    el.hidden = false;
+  }
+}
+
+/* Every global this page needs, and which file supplies it. A missing file --
+   the usual result of uploading through the GitHub web UI and losing a folder
+   -- otherwise shows up as a baffling behaviour rather than a plain message.
+
+   Each entry probes with `typeof`, NOT window[name]. A top-level `const` (how
+   HOLES_DATA, IMAGE_BASE and the capture constants are all declared) creates a
+   lexical binding that never becomes a property of window, so a window lookup
+   reports perfectly healthy files as missing -- which is exactly what the
+   first draft of this check did, condemning the whole page. */
+const REQUIRED_GLOBALS = [
+  ['vendor/leaflet/leaflet.js', () => typeof L !== 'undefined'],
+  ['vendor/leaflet/leaflet-rotate.js', () => typeof L !== 'undefined' && !!L.Map.prototype.setBearing],
+  ['js/holes-data.js', () => typeof HOLES_DATA !== 'undefined'],
+  ['js/app.js', () => typeof resolveImageSrc === 'function'],
+  ['js/capture.js', () => typeof captureHoleImage === 'function'],
+  ['js/github-sync.js', () => typeof ghLoadConfig === 'function']
+];
+
+function missingScripts() {
+  return REQUIRED_GLOBALS.filter(([, present]) => {
+    try { return !present(); } catch (e) { return true; }
+  }).map(([file]) => file);
+}
+
 function initAdmin() {
+  const missing = missingScripts();
+  if (missing.length) {
+    const el = document.getElementById('boot-error');
+    if (el) {
+      el.innerHTML = '<strong>This page is missing files it needs.</strong> '
+        + 'Nothing on it will work until they are uploaded. Missing: <code></code>';
+      el.querySelector('code').textContent = missing.join(', ');
+      el.hidden = false;
+    }
+    return;
+  }
+
   const loaded = loadState();
   state = loaded.data;
-  migrateState();
+  bootStep('migrating saved data', migrateState);
   previewMode = layoutMode();
 
   document.getElementById('admin-course').addEventListener('change', e => {
@@ -262,6 +471,10 @@ function initAdmin() {
   document.getElementById('dismiss-conflict').addEventListener('click', () => {
     document.getElementById('draft-conflict').hidden = true;
   });
+  document.getElementById('placeholder-remove').addEventListener('click', removeSuspectPlaceholders);
+  document.getElementById('placeholder-dismiss').addEventListener('click', () => {
+    document.getElementById('placeholder-notice').hidden = true;
+  });
 
   const stampEl = document.getElementById('build-stamp');
   if (stampEl) stampEl.textContent = BUILD_STAMP;
@@ -270,14 +483,18 @@ function initAdmin() {
     ? 'Restored your in-progress edits from this browser.'
     : 'Starting from the data file on disk.');
 
-  initGitHubSync();
-  populateHoleSelect();
-  initGeoMap();
-  setStage(1);
-  loadHole();
-  renderProgress();
-  if (loaded.fromDraft) checkDraftConflict();
-  checkImagesReachable();   // async; updates the badge when it finishes
+  // Independent steps, in the order that matters least-to-most for recovery:
+  // if the GitHub panel is broken you can still map holes, and if the
+  // satellite map is broken you can still save what you already have.
+  bootStep('GitHub panel', initGitHubSync);
+  bootStep('hole list', populateHoleSelect);
+  bootStep('satellite map', initGeoMap);
+  bootStep('opening stage 1', () => { setStage(1); loadHole(); });
+  bootStep('progress bar', renderProgress);
+  bootStep('placeholder sweep', reportPlaceholders);
+  if (loaded.fromDraft) bootStep('draft check', checkDraftConflict);
+  bootStep('image check', checkImagesReachable);  // async; updates the badge later
+  showBootFailures();
 
   window.addEventListener('resize', debounce(() => {
     if (geoMap) geoMap.invalidateSize();
@@ -641,19 +858,64 @@ function uploadImage(e) {
       shots: keepShots
     };
     h.imageReady = false;
+    // An uploaded image carries no measurement, and without a length every
+    // station on this hole becomes undrawable. Work one out now rather than
+    // leaving a hole whose marshals silently refuse to appear.
+    ensureHoleLength(h);
     if (pendingImages[key]) URL.revokeObjectURL(pendingImages[key].url);
-    pendingImages[key] = { url, blob: file, path: h.image.src };
-    markDirty(`Loaded ${file.name} (${probe.naturalWidth}×${probe.naturalHeight}). `
-      + `Save it as ${h.image.src}, then check the T and G marks in stage 2.`);
-    refreshUi();
+    // `name` is kept so the confirmation can still say WHICH file you chose
+    // after a refresh -- the file input has already been cleared by then.
+    pendingImages[key] = { url, blob: file, path: h.image.src, name: file.name };
+    /* WHY THIS DOES MORE THAN LOAD THE FILE
+       -------------------------------------
+       The upload always worked; it just looked like it hadn't. Stage 1 shows
+       the SATELLITE map, so a freshly uploaded image changes nothing you can
+       see, and the last line here used to be `e.target.value = ''` -- which
+       resets the control to "No file chosen" and erases the only remaining
+       evidence that anything happened. Choose a file, watch it say no file
+       chosen, conclude it's broken. Reasonable conclusion; wrong.
+
+       Clearing the input still has to happen, or picking the SAME file again
+       fires no change event and re-uploading becomes impossible. So instead of
+       relying on that control to report state, the state is shown properly:
+       a persistent line naming the file, and a jump to stage 2, where the
+       image you just uploaded is actually on screen. */
+    showUploadState(h, file, probe.naturalWidth, probe.naturalHeight);
     e.target.value = '';
+    markDirty(`Loaded ${file.name} (${probe.naturalWidth}×${probe.naturalHeight}). `
+      + `It will be saved as ${h.image.src}. Check the T and G marks below.`);
+    setStage(2);          // where the image is visible -- also calls refreshUi
   };
   probe.onerror = () => {
-    setStatus("That file couldn't be read as an image.");
+    setStatus(`"${file.name}" couldn't be read as an image. `
+      + 'Use a .jpg, .png or .webp file.');
     URL.revokeObjectURL(url);
     e.target.value = '';
   };
   probe.src = url;
+}
+
+/* A durable record of what was uploaded, since the file input can't keep one.
+   Cleared when the hole changes and rebuilt by refreshUi for whatever hole is
+   selected, so it always describes the hole you're looking at. */
+function showUploadState(h, file, w, ht) {
+  const el = document.getElementById('upload-state');
+  if (!el) return;
+  if (!h || !holeHasImage(h)) { el.hidden = true; el.textContent = ''; return; }
+  const key = holeKey(currentCourse, h.number);
+  const pend = pendingImages[key];
+  const name = (file && file.name) || (pend && pend.name) || null;
+
+  if (pend) {
+    el.innerHTML = '<strong>Loaded' + (name ? ' ' + escapeHtml(name) : '') + '</strong> — '
+      + `${w || h.image.width}×${ht || h.image.height}. `
+      + `Not in the repository yet; it saves as <code>${escapeHtml(h.image.src)}</code>.`;
+  } else {
+    el.innerHTML = `<strong>This hole already has an image</strong> — `
+      + `<code>${escapeHtml(h.image.src)}</code> (${h.image.width}×${h.image.height}). `
+      + 'Uploading replaces it; the marshal stations stay where they are.';
+  }
+  el.hidden = false;
 }
 
 function onImageReadyToggle(e) {
@@ -950,6 +1212,7 @@ function refreshUi() {
       ? `${h.image.src} · ${h.image.width}×${h.image.height}`
       : 'No image yet for this hole.';
   }
+  showUploadState(h, null);
 
   // stage 2
   document.getElementById('spots-done-toggle').checked = !!h.spotsDone;
@@ -1096,10 +1359,14 @@ function initGitHubSync() {
   document.getElementById('gh-token').value = ghGetToken();
   document.getElementById('gh-remember').checked = ghTokenRemembered();
 
+  /* Saved on every keystroke, not just on blur. "change" only fires when the
+     field loses focus, so typing the repository name and then closing the tab
+     -- or the page erroring before you clicked elsewhere -- lost it. */
   ['gh-owner', 'gh-repo', 'gh-branch'].forEach(id =>
-    document.getElementById(id).addEventListener('change', () => {
-      ghSaveConfig(ghCfgFromForm()); updateSyncUi();
-    }));
+    ['input', 'change'].forEach(ev =>
+      document.getElementById(id).addEventListener(ev, () => {
+        ghSaveConfig(ghCfgFromForm()); updateSyncUi();
+      })));
 
   document.getElementById('gh-autosave').addEventListener('change', () => {
     ghSaveConfig(ghCfgFromForm());
@@ -1221,6 +1488,16 @@ async function testGitHub() {
     if (!r.canPush) {
       setSyncStatus(`Connected to ${r.repoFullName}, but this token can't write to it. `
         + 'Give it "Contents: Read and write" for this repository.', 'bad');
+      return;
+    }
+    if (r.branchProtected) {
+      // Everything above passes and pushes are still refused -- with the same
+      // 422 a race produces, which is why this is worth saying plainly.
+      setSyncStatus(`Connected to ${r.repoFullName} with write access, but the `
+        + `"${cfg.branch}" branch is PROTECTED. A protection rule blocks direct `
+        + 'pushes, so saving will fail with "not a fast forward" no matter how '
+        + 'many times you retry. Remove the rule under Settings → Branches, or '
+        + 'save to an unprotected branch.', 'bad');
       return;
     }
     setSyncStatus(`Connected to ${r.repoFullName} (${r.private ? 'private' : 'public'}) `
@@ -1395,11 +1672,12 @@ async function saveToGitHub(isAuto) {
 
     lastDataSha = await ghFileSha(cfg, DATA_PATH);
     unsavedChanges = false;
+    const notes = [];
+    if (res.rebases > 1) notes.push('the branch had moved, so it was rebuilt on the newer commit');
+    if (res.waitedMs) notes.push(`GitHub took ${Math.round(res.waitedMs / 1000)}s to catch up`);
     setSyncStatus(`Saved as ${res.shortSha} — ${res.files.length} file`
       + `${res.files.length === 1 ? '' : 's'}`
-      + (res.attempts > 1
-          ? ` (the branch had moved, so it was rebuilt on the newer commit)`
-          : '')
+      + (notes.length ? ` (${notes.join('; ')})` : '')
       + '. GitHub Pages usually redeploys within a minute.', 'good');
   } catch (err) {
     setSyncStatus('Not saved: ' + err.message, 'bad');

@@ -14,6 +14,9 @@
 
 <div class="admin-banner">ADMIN — setup tool. Marshals don't need this page.</div>
 
+<!-- Filled in by the start-up self-check. Hidden unless something broke. -->
+<div class="boot-error" id="boot-error" hidden></div>
+
 <header class="admin-header">
   <a href="index.html" class="back-link" aria-label="Back to the welcome page">&larr;</a>
   <div class="admin-header__text">
@@ -29,6 +32,16 @@
   <div class="draft-conflict__actions">
     <button type="button" class="pager-btn" id="use-file-instead">Load the file instead</button>
     <button type="button" class="pager-btn pager-btn--all" id="dismiss-conflict">Keep browser edits</button>
+  </div>
+</div>
+
+<!-- Leftover stations from the original placeholder data. Ones that provably
+     can't be yours are already gone; anything ambiguous is offered, not taken. -->
+<div class="placeholder-notice" id="placeholder-notice" hidden>
+  <p class="placeholder-notice__text" id="placeholder-notice-text"></p>
+  <div class="draft-conflict__actions">
+    <button type="button" class="pager-btn" id="placeholder-remove" hidden>Remove those too</button>
+    <button type="button" class="pager-btn pager-btn--all" id="placeholder-dismiss">Dismiss</button>
   </div>
 </div>
 
@@ -138,6 +151,9 @@
   <label class="admin-import">
     <span class="admin-import__label">Or upload an image for this hole</span>
     <input type="file" id="upload-image" accept="image/*">
+    <!-- The file input resets itself after a load, so the confirmation has to
+         live somewhere that persists. -->
+    <p class="upload-state" id="upload-state" hidden></p>
     <span class="admin-import__hint">
       Use this for official course artwork later. You then mark its tee and green in stage 2 —
       existing marshal stations move with the new marks automatically.
@@ -285,7 +301,37 @@
 <script src="js/github-sync.js"></script>
 <script src="js/admin.js"></script>
 <script>
-  if (!mapLibraryMissing('geo-map')) initAdmin();
+  /* Anything that escapes start-up gets shown on the page rather than only in
+     a console nobody has open. Registered first so it also catches a failure
+     inside initAdmin itself. */
+  window.addEventListener('error', function (e) {
+    var el = document.getElementById('boot-error');
+    if (!el || !e || !e.message) return;
+    el.hidden = false;
+    el.innerHTML = '<strong>Something on this page errored.</strong> '
+      + 'Tell Claude exactly what this says:<br><code></code>';
+    el.querySelector('code').textContent =
+      e.message + ' (' + (e.filename || '?').split('/').pop() + ':' + e.lineno + ')';
+  });
+
+  try {
+    if (typeof initAdmin !== 'function') {
+      throw new Error('js/admin.js did not load');
+    }
+    if (typeof mapLibraryMissing === 'function' && mapLibraryMissing('geo-map')) {
+      // mapLibraryMissing already put its own explanation on the page.
+    } else {
+      initAdmin();
+    }
+  } catch (err) {
+    var el = document.getElementById('boot-error');
+    if (el) {
+      el.hidden = false;
+      el.innerHTML = '<strong>The admin page could not start.</strong> '
+        + 'Tell Claude exactly what this says:<br><code></code>';
+      el.querySelector('code').textContent = err && err.message ? err.message : String(err);
+    }
+  }
 </script>
 </body>
 </html>

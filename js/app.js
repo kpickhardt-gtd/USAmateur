@@ -27,7 +27,7 @@
 /* Bumped whenever the code changes. Shown in the admin header so you can tell
    at a glance whether the browser is running the version you just uploaded,
    rather than a cached copy. */
-const BUILD_STAMP = '2026-08-25e';
+const BUILD_STAMP = '2026-08-25g';
 
 const SATELLITE_TILE_URL = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
 const SATELLITE_ATTRIBUTION = 'Imagery &copy; Esri, Maxar, Earthstar Geographics';
@@ -135,6 +135,67 @@ function holeHasImage(hole) {
   return !!(i && i.src && i.width && i.height && i.tee && i.green);
 }
 
+/* ---------- hole length ----------
+
+   WHY THIS MATTERS MORE THAN IT LOOKS
+   -----------------------------------
+   lengthYards is what converts yards into pixels. Marshal stations are stored
+   as (t along the centre line, offsetYards across it), so without a length
+   there is no scale, yardsPerPixel returns null, and addMarshalSpot quietly
+   returns null for every station on the hole. The result is a hole page that
+   shows the image, shows the marshal LIST, and draws nothing on the map --
+   which reads as "the stations were lost" when in fact the data is perfect
+   and only the scale is missing.
+
+   It went missing for an ordinary reason: capturing from satellite records a
+   length, but UPLOADING an image never did, and migration only filled it in
+   for holes that had satellite tee/green coordinates. Any hole built from an
+   uploaded image therefore had stations that could never be drawn.
+
+   Two defences, because one isn't enough:
+     - fill the length in wherever it can be worked out (below), and
+     - never let a missing length delete a station (yardsPerPixel's caller
+       falls back to an assumed scale rather than returning null).
+
+   A station's position ALONG the fairway is a fraction of the path and needs
+   no yardage at all, so even a guessed scale puts it in very nearly the right
+   place; only the sideways offset and the circle radius depend on it. */
+
+/* A typical length for the par, used only when nothing better is known. */
+function assumedLengthYards(hole) {
+  const par = num(hole && hole.par, 4);
+  if (par <= 3) return 175;
+  if (par >= 5) return 540;
+  return 400;
+}
+
+/* Give the hole a usable length, preferring a real measurement.
+   Returns true if it had to assume one. */
+function ensureHoleLength(hole) {
+  if (!hole) return false;
+  if (num(hole.lengthYards, 0) > 0) return false;
+
+  if (holeHasSource(hole)) {
+    hole.lengthYards = metersToYards(geoDistanceMeters(hole.source.tee, hole.source.green));
+    hole.lengthAssumed = false;
+    if (num(hole.lengthYards, 0) > 0) return false;
+  }
+
+  hole.lengthYards = assumedLengthYards(hole);
+  hole.lengthAssumed = true;      // flagged so the admin can say so out loud
+  return true;
+}
+
+/* Run over a whole data set. Cheap, idempotent, and safe to call on every
+   page load: it only ever fills in a blank. */
+function ensureDataLengths(data) {
+  const assumed = [];
+  ['east', 'west'].forEach(k => (((data && data[k] && data[k].holes) || [])).forEach(h => {
+    if (ensureHoleLength(h)) assumed.push({ course: k, number: h.number });
+  }));
+  return assumed;
+}
+
 /* ---------- hole-axis <-> image-pixel transforms ----------
    The only bridge between stage 1 and stage 2. Everything marshal-related
    goes through here, which is why changing the image is cheap. */
@@ -190,12 +251,25 @@ function yardsPerPixel(hole) {
   return yds / path.total;
 }
 
+/* The scale actually used for drawing. ensureHoleLength should already have
+   given every hole a length, so this normally just returns yardsPerPixel --
+   but it is the belt to that braces: if a length is ever missing again, a
+   station is drawn at an assumed scale instead of disappearing without a
+   word. Silent disappearance is the failure mode that cost real time here. */
+function drawingYardsPerPixel(hole) {
+  const real = yardsPerPixel(hole);
+  if (real) return real;
+  const path = holePath(hole);
+  if (!path || !path.total) return null;
+  return assumedLengthYards(hole) / path.total;
+}
+
 /* (t, offsetYards) -> image pixel {x,y}.
    t is the fraction of the path walked from the tee; offsetYards is measured
    perpendicular to whichever segment the point falls on. */
 function axisToImagePoint(hole, t, offsetYards) {
   const path = holePath(hole);
-  const ypp = yardsPerPixel(hole);
+  const ypp = drawingYardsPerPixel(hole);
   if (!path || !ypp) return null;
 
   const d = t * path.total;
@@ -218,7 +292,9 @@ function axisToImagePoint(hole, t, offsetYards) {
    the tee still gets a sensible negative distance. */
 function imagePointToAxis(hole, px, py) {
   const path = holePath(hole);
-  const ypp = yardsPerPixel(hole);
+  // MUST be the same scale axisToImagePoint uses, or the round trip is lossy
+  // and dragging a station would shift it under your finger.
+  const ypp = drawingYardsPerPixel(hole);
   if (!path || !ypp) return null;
 
   let best = null;
@@ -243,7 +319,7 @@ function imagePointToAxis(hole, px, py) {
 }
 
 function yardsToPixels(hole, yards) {
-  const ypp = yardsPerPixel(hole);
+  const ypp = drawingYardsPerPixel(hole);
   return ypp ? yards / ypp : 0;
 }
 
@@ -451,6 +527,7 @@ function addMarshalSpot(map, hole, spot, index, opts) {
    course.html
    ============================================================ */
 function renderCoursePage() {
+  ensureDataLengths(HOLES_DATA);
   const courseKey = getCourseKey();
   const course = HOLES_DATA[courseKey];
   document.body.classList.toggle('theme-west', courseKey === 'west');
@@ -512,6 +589,7 @@ function renderCoursePage() {
    hole.html — marshal-facing view, image only
    ============================================================ */
 function renderHolePage() {
+  ensureDataLengths(HOLES_DATA);   // no station may vanish for want of a scale
   const courseKey = getCourseKey();
   const holeNum = parseInt(getParam('hole'), 10) || 1;
   const course = HOLES_DATA[courseKey];
