@@ -1,5 +1,5 @@
 // Hole images and marshal stations.
-// Saved from admin.html on 2026-08-25T18:47:27.684Z
+// Saved from admin.html on 2026-08-25T18:48:29.371Z
 //
 // savedAt is read back by the admin so it can tell whether this file or
 // a browser draft is the newer one, rather than making you guess.
@@ -285,8 +285,8 @@ const HOLES_DATA = {
         "zoom": 18,
         "marshals": [
           {
-            "t": -0.014068976509228143,
-            "offsetYards": -9.54331098729083,
+            "t": -0.049837940365375276,
+            "offsetYards": -15.818737081891422,
             "radiusYards": 13,
             "label": "Marshal spot 1"
           },
@@ -312,8 +312,8 @@ const HOLES_DATA = {
         "source": {
           "kind": "satellite",
           "tee": {
-            "lat": 43.11781962515768,
-            "lng": -77.525140337381
+            "lat": 43.11776984282523,
+            "lng": -77.52516543662954
           },
           "green": {
             "lat": 43.1192873102927,
@@ -321,27 +321,27 @@ const HOLES_DATA = {
           },
           "shots": [],
           "bearingNudge": 0,
-          "zoomNudge": -0.25,
+          "zoomNudge": 0,
           "imagery": "esri",
           "capturedZoom": 19
         },
         "image": {
           "src": "images/holes/east-05.jpg",
-          "width": 1650,
-          "height": 928,
+          "width": 1427,
+          "height": 803,
           "tee": {
-            "x": 0.14682350559433266,
-            "y": 0.49999999999419276
+            "x": 0.07999999999999997,
+            "y": 0.5
           },
           "green": {
-            "x": 0.8531764944074527,
-            "y": 0.49999999999419265
+            "x": 0.9200000000000002,
+            "y": 0.5
           },
           "shots": []
         },
         "imageReady": true,
         "spotsDone": true,
-        "lengthYards": 185.02300617994064
+        "lengthYards": 190.31198421235015
       },
       {
         "number": 6,
@@ -1541,5 +1541,5 @@ const HOLES_DATA = {
       }
     ]
   },
-  "savedAt": "2026-08-25T18:47:27.684Z"
+  "savedAt": "2026-08-25T18:48:29.371Z"
 };
