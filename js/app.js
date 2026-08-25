@@ -27,10 +27,117 @@
 /* Bumped whenever the code changes. Shown in the admin header so you can tell
    at a glance whether the browser is running the version you just uploaded,
    rather than a cached copy. */
-const BUILD_STAMP = '2026-08-25g';
+const BUILD_STAMP = '2026-08-25h';
 
-const SATELLITE_TILE_URL = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
-const SATELLITE_ATTRIBUTION = 'Imagery &copy; Esri, Maxar, Earthstar Geographics';
+/* ---------- imagery sources (stage 1 only) ----------
+
+   WHY MORE THAN ONE, AND WHY NOT GOOGLE
+   -------------------------------------
+   Google's imagery is often the sharpest, and it is the obvious thing to
+   reach for. It cannot be used here: the Map Tiles API policies forbid
+   pre-fetching, storing or caching tiles, and list "offline uses" among the
+   prohibited ones. This tool exists to composite tiles into a JPEG and commit
+   it to a repository, which is squarely what that prohibits — so it is a
+   licensing wall, not a technical one, and no API key changes it.
+
+   What DOES help, and cost nothing:
+
+   1. Esri publishes zoom levels up to 23 (about 2cm per pixel), and this tool
+      was capped at 19 (about 30cm). In a metro area like Rochester that threw
+      away most of the available detail for no reason. The cap is now per
+      source, and probed at runtime rather than assumed.
+
+   2. New York State publishes its own orthoimagery, flown in SPRING — before
+      the leaves come in. For a golf course that is often more useful than a
+      sharper summer image, because fairway edges, cart paths and bunkers are
+      not hidden under tree canopy. Public domain, attribution only.
+
+   Each source declares the deepest zoom it is WILLING to serve; the real
+   limit for a given place is found by probing (see probeMaxZoom). */
+
+const IMAGERY_SOURCES = {
+  esri: {
+    label: 'Esri World Imagery',
+    note: 'Sharpest where it has recent metro coverage. Usually summer, leaf-on.',
+    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    attribution: 'Imagery &copy; Esri, Maxar, Earthstar Geographics',
+    maxZoom: 21
+  },
+  nysLatest: {
+    label: 'NYS Orthoimagery (latest)',
+    note: 'New York State, flown in spring — leaf-off, so the ground is visible.',
+    url: 'https://orthos.its.ny.gov/arcgis/rest/services/wms/Latest/MapServer/tile/{z}/{y}/{x}',
+    attribution: 'Imagery &copy; NYS ITS Geospatial Services',
+    maxZoom: 20
+  },
+  nys2023: {
+    label: 'NYS Orthoimagery 2023',
+    note: 'A fixed vintage — useful for comparing against a newer flight.',
+    url: 'https://orthos.its.ny.gov/arcgis/rest/services/wms/2023/MapServer/tile/{z}/{y}/{x}',
+    attribution: 'Imagery &copy; NYS ITS Geospatial Services',
+    maxZoom: 20
+  }
+};
+
+const DEFAULT_IMAGERY = 'esri';
+
+function imagerySource(key) {
+  return IMAGERY_SOURCES[key] || IMAGERY_SOURCES[DEFAULT_IMAGERY];
+}
+
+/* Kept so older callers and saved data that name no source still work. */
+const SATELLITE_TILE_URL = IMAGERY_SOURCES.esri.url;
+const SATELLITE_ATTRIBUTION = IMAGERY_SOURCES.esri.attribution;
+
+/* The deepest zoom a source actually serves for a given point.
+
+   A source's declared maxZoom is only its ceiling; real coverage varies street
+   by street. Rather than assume, fetch one tile at each level from the deepest
+   down and take the first that loads. Cached per source+area, because the
+   answer is stable and the probe costs a round trip. */
+const _maxZoomCache = Object.create(null);
+
+async function probeMaxZoom(sourceKey, lat, lng) {
+  const src = imagerySource(sourceKey);
+  const cacheKey = `${sourceKey}@${lat.toFixed(2)},${lng.toFixed(2)}`;
+  if (cacheKey in _maxZoomCache) return _maxZoomCache[cacheKey];
+
+  const FLOOR = 17;
+  for (let z = src.maxZoom; z >= FLOOR; z--) {
+    const size = Math.pow(2, z);
+    const x = Math.floor((lng + 180) / 360 * size);
+    const s = Math.sin(lat * Math.PI / 180);
+    const y = Math.floor((0.5 - Math.log((1 + s) / (1 - s)) / (4 * Math.PI)) * size);
+    const url = src.url.replace('{z}', z).replace('{x}', x).replace('{y}', y);
+    if (await probeImage(url)) { _maxZoomCache[cacheKey] = z; return z; }
+  }
+  _maxZoomCache[cacheKey] = FLOOR;
+  return FLOOR;
+}
+
+/* Does this URL load as an image?
+
+   ONE definition, deliberately. There used to be a second copy of this in
+   admin.js which -- being loaded later -- silently replaced this one for every
+   caller, including the tile probe above. That copy appended a cache-busting
+   query string, which is right for re-checking a repository file and wrong for
+   a tile service. Same name, same scope, different behaviour, no warning: the
+   sort of collision that produces a bug nobody can locate. Hence `bust` as an
+   argument rather than a second function.
+
+   `bust` forces a fresh fetch, for when the point is to re-check a file that
+   may have changed (a newly committed image). Leave it off for tiles. */
+function probeImage(src, bust) {
+  return new Promise(resolve => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => resolve(img.naturalWidth > 0);
+    img.onerror = () => resolve(false);
+    img.src = bust
+      ? src + (src.includes('?') ? '&' : '?') + 'probe=' + Date.now()
+      : src;
+  });
+}
 
 /* Screen width at or above which the hole is shown running left-to-right.
    Below it the image is rotated so the hole runs bottom-to-top. */
@@ -56,6 +163,52 @@ function resolveImageSrc(src) {
 const CAPTURE_WIDTH = 2048;
 const CAPTURE_HEIGHT = 1152;
 const CAPTURE_PAD_FRAC = 0.08;   // tee sits 8% in from the left edge
+
+/* ---------- how big to capture ----------
+
+   WHAT ACTUALLY CONTROLS SHARPNESS
+   --------------------------------
+   Raising the tile-zoom ceiling on its own changes nothing here, and it is
+   worth being precise about why, because the obvious guess is wrong.
+
+   The capture picks the SHALLOWEST zoom that still supplies enough pixels for
+   the output size, then downsamples. A 590m hole across 2048px needs zoom
+   18.3, so it takes zoom 19 and renders at scale 0.63 -- already throwing
+   imagery detail away. At that output size zoom 19 was never the limit, and
+   uncapping it produces a byte-identical image.
+
+   The binding constraint is the OUTPUT SIZE. More output pixels is what asks
+   for more ground detail; the raised zoom ceiling then matters, because it is
+   what lets the bigger image be fed by real imagery instead of an upscale.
+   The two only help together.
+
+   Against that: these files ship to marshals on a crowded course with poor
+   signal, and 36 large JPEGs is a real cost. So the trade-off is stated in
+   numbers and left as a choice rather than decided quietly. */
+const CAPTURE_SIZES = {
+  standard: {
+    label: 'Standard — 2048px (~400 KB)',
+    width: 2048, height: 1152,
+    note: 'Fast on a weak signal. Fine for seeing where to stand.'
+  },
+  sharp: {
+    label: 'Sharp — 3072px (~800 KB)',
+    width: 3072, height: 1728,
+    note: 'Roughly twice the detail. Still reasonable over course wifi.'
+  },
+  max: {
+    label: 'Maximum — 4096px (~1.4 MB)',
+    width: 4096, height: 2304,
+    note: 'As much detail as the imagery holds. 36 of these is ~50MB, '
+        + 'and slow for a marshal on a phone at the far end of the course.'
+  }
+};
+
+const DEFAULT_CAPTURE_SIZE = 'sharp';
+
+function captureSize(key) {
+  return CAPTURE_SIZES[key] || CAPTURE_SIZES[DEFAULT_CAPTURE_SIZE];
+}
 
 const DEFAULT_RADIUS_YARDS = 13;
 
@@ -364,12 +517,16 @@ function mapLibraryMissing(containerId) {
 
 /* Live satellite tiles. Used ONLY by stage 1 of the admin tool, to author the
    hole images. The marshal-facing pages never load a tile. */
-function addSatelliteLayer(map) {
-  const layer = L.tileLayer(SATELLITE_TILE_URL, {
-    maxZoom: 21,
-    maxNativeZoom: 19,
+function addSatelliteLayer(map, sourceKey) {
+  const src = imagerySource(sourceKey);
+  const layer = L.tileLayer(src.url, {
+    maxZoom: 23,
+    // How deep real imagery goes. Leaflet upscales beyond this rather than
+    // requesting tiles that don't exist, so panning stays smooth even where
+    // the source runs out of detail.
+    maxNativeZoom: src.maxZoom,
     crossOrigin: 'anonymous',   // required so captures can be exported
-    attribution: SATELLITE_ATTRIBUTION
+    attribution: src.attribution
   });
 
   let warned = false;
@@ -378,13 +535,21 @@ function addSatelliteLayer(map) {
     warned = true;
     const note = document.createElement('div');
     note.className = 'map-offline-note';
-    note.textContent = "Satellite imagery couldn't load — stage 1 needs an internet "
-      + "connection to Esri's tile server.";
+    note.textContent = `Imagery couldn't load from ${src.label} — stage 1 needs an `
+      + 'internet connection to it. Try another source.';
     map.getContainer().appendChild(note);
   });
 
   layer.addTo(map);
+  layer._sourceKey = sourceKey || DEFAULT_IMAGERY;
   return layer;
+}
+
+/* Swap the live imagery underneath the map without disturbing the view, the
+   rotation, or any pin already placed. */
+function setSatelliteSource(map, layer, sourceKey) {
+  if (layer) map.removeLayer(layer);
+  return addSatelliteLayer(map, sourceKey);
 }
 
 /* A pan/zoom surface showing one hole image. No tile server involved. */

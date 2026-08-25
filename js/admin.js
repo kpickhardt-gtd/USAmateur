@@ -26,6 +26,23 @@ let currentHoleNum = 1;
 
 /* --- stage 1 (satellite) --- */
 let geoMap = null;
+let geoLayer = null;
+
+/* Which imagery source stage 1 is drawing from. Remembered per browser: it's
+   a working preference, not part of the hole data, and captures record the
+   source they used so the data stays self-describing. */
+const IMAGERY_KEY = 'oakhill_imagery_source_v1';
+let imagerySourceKey = (function () {
+  try { return localStorage.getItem(IMAGERY_KEY) || DEFAULT_IMAGERY; }
+  catch (e) { return DEFAULT_IMAGERY; }
+})();
+
+/* Output size for captures. The thing that actually governs sharpness. */
+const CAPTURE_SIZE_KEY = 'oakhill_capture_size_v1';
+let captureSizeKey = (function () {
+  try { return localStorage.getItem(CAPTURE_SIZE_KEY) || DEFAULT_CAPTURE_SIZE; }
+  catch (e) { return DEFAULT_CAPTURE_SIZE; }
+})();
 let geoLayers = null;          // {line, tee, green}
 let placing = null;            // 'tee' | 'green' | null
 let suppressRotateCapture = false;
@@ -73,6 +90,156 @@ function loadState() {
 
 function saveDraft() {
   try { localStorage.setItem(DRAFT_KEY, JSON.stringify(state)); } catch (e) { /* full/blocked */ }
+}
+
+/* ============================================================
+   PENDING IMAGE BYTES — kept in IndexedDB
+
+   THE TRAP THIS CLOSES
+   --------------------
+   Capturing or uploading an image put the record straight into the hole data
+   (which persists in localStorage) but kept the FILE only as an in-memory
+   blob URL. Those two have very different lifetimes. Reload the page and the
+   data still confidently says "hole 1 uses images/holes/east-01.png" while the
+   only copy of east-01.png that ever existed has been garbage-collected. The
+   page then reports the file as unreachable and advises checking capitalisation
+   — of a file that was never committed and no longer exists anywhere.
+
+   Image bytes are far too big for localStorage (a 2048x1152 JPEG is ~400KB,
+   and base64 inflates it by a third, against a ~5MB quota for the whole
+   origin). IndexedDB stores Blobs natively with a much larger quota, so the
+   bytes now live there until the commit that publishes them succeeds.
+
+   Everything here degrades quietly: if IndexedDB is unavailable (private
+   browsing, an old browser), the tool behaves exactly as it did before rather
+   than refusing to work. What it must never do is throw during start-up.
+   ============================================================ */
+
+const IMG_DB_NAME = 'oakhill-admin';
+const IMG_DB_STORE = 'pending-images';
+
+function imgDb() {
+  return new Promise((resolve, reject) => {
+    if (!window.indexedDB) return reject(new Error('no indexedDB'));
+    const req = indexedDB.open(IMG_DB_NAME, 1);
+    req.onupgradeneeded = () => {
+      const db = req.result;
+      if (!db.objectStoreNames.contains(IMG_DB_STORE)) db.createObjectStore(IMG_DB_STORE);
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error || new Error('indexedDB open failed'));
+  });
+}
+
+function imgDbTx(mode, fn) {
+  return imgDb().then(db => new Promise((resolve, reject) => {
+    const tx = db.transaction(IMG_DB_STORE, mode);
+    const store = tx.objectStore(IMG_DB_STORE);
+    let out;
+    try { out = fn(store); } catch (e) { reject(e); return; }
+    tx.oncomplete = () => resolve(out && out.result !== undefined ? out.result : out);
+    tx.onerror = () => reject(tx.error);
+    tx.onabort = () => reject(tx.error || new Error('aborted'));
+  }));
+}
+
+async function imgDbPut(key, rec) {
+  try { await imgDbTx('readwrite', s => s.put(rec, key)); }
+  catch (e) { if (window.console) console.warn('[admin] could not persist image bytes:', e); }
+}
+
+async function imgDbDelete(key) {
+  try { await imgDbTx('readwrite', s => s.delete(key)); } catch (e) { /* ignore */ }
+}
+
+async function imgDbAll() {
+  try {
+    const db = await imgDb();
+    return await new Promise((resolve, reject) => {
+      const tx = db.transaction(IMG_DB_STORE, 'readonly');
+      const store = tx.objectStore(IMG_DB_STORE);
+      const out = {};
+      const cur = store.openCursor();
+      cur.onsuccess = () => {
+        const c = cur.result;
+        if (!c) { resolve(out); return; }
+        out[c.key] = c.value;
+        c.continue();
+      };
+      cur.onerror = () => reject(cur.error);
+    });
+  } catch (e) { return {}; }
+}
+
+/* A note of which image files were made in THIS browser and have not yet been
+   committed. It outlives the blob URLs and even the IndexedDB record, so if
+   the bytes are ever lost we can still tell the difference between "this file
+   was never published" and "this file is published but the path is wrong" --
+   two problems whose advice is completely different. */
+const LOCAL_IMAGES_KEY = 'oakhill_local_images_v1';
+
+function localImages() {
+  try { return JSON.parse(localStorage.getItem(LOCAL_IMAGES_KEY) || '{}'); }
+  catch (e) { return {}; }
+}
+
+function noteLocalImage(key, path) {
+  try {
+    const m = localImages(); m[key] = path;
+    localStorage.setItem(LOCAL_IMAGES_KEY, JSON.stringify(m));
+  } catch (e) { /* storage unavailable */ }
+}
+
+function forgetLocalImage(key) {
+  try {
+    const m = localImages(); delete m[key];
+    localStorage.setItem(LOCAL_IMAGES_KEY, JSON.stringify(m));
+  } catch (e) { /* storage unavailable */ }
+}
+
+/* Record a pending image both in memory and on disk, so a reload keeps it. */
+function setPendingImage(key, blob, path, name) {
+  noteLocalImage(key, path);
+  if (pendingImages[key]) URL.revokeObjectURL(pendingImages[key].url);
+  pendingImages[key] = { url: URL.createObjectURL(blob), blob, path, name: name || null };
+  imgDbPut(key, { blob, path, name: name || null });
+}
+
+function clearPendingImage(key) {
+  const p = pendingImages[key];
+  if (p) URL.revokeObjectURL(p.url);
+  delete pendingImages[key];
+  imgDbDelete(key);
+  forgetLocalImage(key);      // it's in the repo now
+}
+
+/* Bring back anything that was captured or uploaded but never committed. */
+async function restorePendingImages() {
+  const saved = await imgDbAll();
+  const keys = Object.keys(saved);
+  if (!keys.length) return 0;
+
+  let restored = 0;
+  keys.forEach(key => {
+    const rec = saved[key];
+    if (!rec || !rec.blob || !rec.path) return;
+    // Only restore where the data still refers to this image; otherwise it's
+    // a leftover from a hole that has since been recaptured or cleared.
+    if (!stateReferencesPath(rec.path)) { imgDbDelete(key); return; }
+    if (pendingImages[key]) return;
+    pendingImages[key] = {
+      url: URL.createObjectURL(rec.blob), blob: rec.blob,
+      path: rec.path, name: rec.name || null
+    };
+    restored++;
+  });
+  return restored;
+}
+
+function stateReferencesPath(path) {
+  const want = String(path).split('/').pop().toLowerCase();
+  return ['east', 'west'].some(k => ((state[k] && state[k].holes) || []).some(h =>
+    h.image && h.image.src && h.image.src.split('/').pop().toLowerCase() === want));
 }
 
 function setStatus(msg) {
@@ -454,6 +621,28 @@ function initAdmin() {
     b.addEventListener('click', () => zoomBy(parseFloat(b.dataset.zoom))));
   document.getElementById('reset-framing').addEventListener('click', resetFraming);
 
+  const imgSel = document.getElementById('imagery-source');
+  if (imgSel) {
+    imgSel.innerHTML = Object.keys(IMAGERY_SOURCES).map(k =>
+      `<option value="${k}">${escapeHtml(IMAGERY_SOURCES[k].label)}</option>`).join('');
+    imgSel.value = imagerySourceKey;
+    imgSel.addEventListener('change', e => setImagerySource(e.target.value));
+  }
+
+  const sizeSel = document.getElementById('capture-size');
+  if (sizeSel) {
+    sizeSel.innerHTML = Object.keys(CAPTURE_SIZES).map(k =>
+      `<option value="${k}">${escapeHtml(CAPTURE_SIZES[k].label)}</option>`).join('');
+    sizeSel.value = captureSizeKey;
+    sizeSel.addEventListener('change', e => {
+      captureSizeKey = e.target.value;
+      try { localStorage.setItem(CAPTURE_SIZE_KEY, captureSizeKey); } catch (err) { /* ignore */ }
+      refreshUi();
+      setStatus(`Capture size: ${captureSize(captureSizeKey).label}. `
+        + 'Existing images are unchanged — re-capture a hole to use it.');
+    });
+  }
+
   // stage 2
   document.querySelectorAll('[data-preview]').forEach(b =>
     b.addEventListener('click', () => setPreview(b.dataset.preview)));
@@ -493,8 +682,21 @@ function initAdmin() {
   bootStep('progress bar', renderProgress);
   bootStep('placeholder sweep', reportPlaceholders);
   if (loaded.fromDraft) bootStep('draft check', checkDraftConflict);
-  bootStep('image check', checkImagesReachable);  // async; updates the badge later
   showBootFailures();
+
+  /* Restore uncommitted image bytes, THEN check reachability -- in that order,
+     or a restored image gets reported as missing. */
+  restorePendingImages()
+    .then(n => {
+      if (n) {
+        refreshUi();
+        updateSyncUi();
+        setStatus(`Restored ${n} image${n === 1 ? '' : 's'} captured or uploaded `
+          + 'earlier and not yet saved to GitHub.');
+      }
+    })
+    .catch(() => { /* falls back to the old in-memory-only behaviour */ })
+    .then(() => checkImagesReachable());
 
   window.addEventListener('resize', debounce(() => {
     if (geoMap) geoMap.invalidateSize();
@@ -559,7 +761,8 @@ function initGeoMap() {
     zoomSnap: 0, zoomDelta: 0.25, wheelPxPerZoomLevel: 140, zoomControl: false
   });
   L.control.zoom({ position: 'topleft' }).addTo(geoMap);
-  addSatelliteLayer(geoMap);
+  geoLayer = addSatelliteLayer(geoMap, imagerySourceKey);
+  reportImageryDetail();
   geoMap.on('click', onGeoClick);
   geoMap.on('rotateend', () => {
     if (suppressRotateCapture) return;
@@ -569,6 +772,40 @@ function initGeoMap() {
     updateGeoReadout();
     markDirty();
   });
+}
+
+/* Switch imagery source, keeping the view and every pin exactly where it is. */
+function setImagerySource(key) {
+  imagerySourceKey = key;
+  try { localStorage.setItem(IMAGERY_KEY, key); } catch (e) { /* ignore */ }
+  if (geoMap) geoLayer = setSatelliteSource(geoMap, geoLayer, key);
+  const src = imagerySource(key);
+  setStatus(`Imagery: ${src.label}. ${src.note}`);
+  reportImageryDetail();
+  refreshUi();
+}
+
+/* Say how much real detail this source has HERE, rather than leaving you to
+   judge sharpness by eye. The declared ceiling is only a ceiling; coverage
+   varies place to place, so it is probed. */
+async function reportImageryDetail() {
+  const el = document.getElementById('imagery-detail');
+  if (!el) return;
+  const key = imagerySourceKey;
+  const c = geoMap ? geoMap.getCenter() : { lat: 43.1123, lng: -77.5305 };
+  el.textContent = 'Checking available detail…';
+  try {
+    const z = await probeMaxZoom(key, c.lat, c.lng);
+    if (key !== imagerySourceKey) return;     // switched while we were asking
+    // Ground resolution at the equator, corrected for latitude.
+    const mPerPx = 156543.03392 * Math.cos(c.lat * Math.PI / 180) / Math.pow(2, z);
+    const cm = mPerPx * 100;
+    el.textContent = `Real detail here: zoom ${z}, about `
+      + (cm < 100 ? `${cm.toFixed(0)} cm` : `${(cm / 100).toFixed(1)} m`)
+      + ' per pixel. Captures use this automatically.';
+  } catch (e) {
+    el.textContent = '';
+  }
 }
 
 /* Bearing that lays the hole out left-to-right on the satellite map, so what
@@ -792,13 +1029,21 @@ async function captureCurrentHole() {
 
   const btn = document.getElementById('capture-hole');
   btn.disabled = true;
-  setStatus('Capturing satellite imagery…');
+  const src = imagerySource(imagerySourceKey);
+  setStatus(`Capturing from ${src.label}…`);
   try {
+    // Ask for the deepest zoom this source actually serves at this hole, not a
+    // hardcoded guess -- that guess was costing most of the available detail.
+    const maxZoom = await probeMaxZoom(imagerySourceKey, h.source.tee.lat, h.source.tee.lng);
+    const size = captureSize(captureSizeKey);
     const res = await captureHoleImage({
       tee: h.source.tee, green: h.source.green,
       shots: h.source.shots || [],
       bearingNudge: num(h.source.bearingNudge, 0),
-      zoomNudge: num(h.source.zoomNudge, 0)
+      zoomNudge: num(h.source.zoomNudge, 0),
+      tileUrl: src.url,
+      width: size.width, height: size.height,
+      maxZoom
     });
 
     const key = holeKey(currentCourse, h.number);
@@ -811,13 +1056,11 @@ async function captureCurrentHole() {
       shots: res.image.shots || []
     };
     h.imageReady = false;   // becomes true when you sign it off
+    // Record which imagery this came from, so the data explains itself later.
+    h.source.imagery = imagerySourceKey;
+    h.source.capturedZoom = res.zoom || maxZoom;
 
-    if (pendingImages[key]) URL.revokeObjectURL(pendingImages[key].url);
-    pendingImages[key] = {
-      url: URL.createObjectURL(res.blob),
-      blob: res.blob,
-      path: h.image.src
-    };
+    setPendingImage(key, res.blob, h.image.src, filename);
     // Only fall back to a download when there's no GitHub save configured.
     if (!ghReady()) downloadBlob(res.blob, filename);
 
@@ -825,8 +1068,10 @@ async function captureCurrentHole() {
     if (res.tilesFailed) extra.push(`${res.tilesFailed} tile(s) failed to load`);
     if (res.downsized) extra.push(`sized ${res.image.width}×${res.image.height} to stay at native imagery detail`);
     if (res.zoomedOutToFit) extra.push(`zoomed out ${res.zoomedOutToFit}× so the dogleg fits`);
-    setStatus(`Captured ${filename}${extra.length ? ' — ' + extra.join('; ') : ''}. `
-      + `Save it into ${IMAGE_DIR || 'the site folder'} in the repo.`);
+    // The real numbers, because "is this sharper?" should not be a guess.
+    extra.push(`zoom ${res.zoom}, ${Math.round(res.blob.size / 1024)} KB`);
+    setStatus(`Captured ${filename} at ${res.image.width}×${res.image.height} `
+      + `from ${src.label} — ${extra.join('; ')}.`);
     markDirty();
     refreshUi();
   } catch (err) {
@@ -862,10 +1107,12 @@ function uploadImage(e) {
     // station on this hole becomes undrawable. Work one out now rather than
     // leaving a hole whose marshals silently refuse to appear.
     ensureHoleLength(h);
-    if (pendingImages[key]) URL.revokeObjectURL(pendingImages[key].url);
     // `name` is kept so the confirmation can still say WHICH file you chose
     // after a refresh -- the file input has already been cleared by then.
-    pendingImages[key] = { url, blob: file, path: h.image.src, name: file.name };
+    // The bytes go to IndexedDB in the same breath, so a reload before the
+    // commit no longer leaves the data pointing at a file that never existed.
+    URL.revokeObjectURL(url);
+    setPendingImage(key, file, h.image.src, file.name);
     /* WHY THIS DOES MORE THAN LOAD THE FILE
        -------------------------------------
        The upload always worked; it just looked like it hadn't. Stage 1 shows
@@ -1214,6 +1461,11 @@ function refreshUi() {
   }
   showUploadState(h, null);
 
+  const noteEl = document.getElementById('imagery-note');
+  if (noteEl) noteEl.textContent = imagerySource(imagerySourceKey).note;
+  const sizeNote = document.getElementById('capture-size-note');
+  if (sizeNote) sizeNote.textContent = captureSize(captureSizeKey).note;
+
   // stage 2
   document.getElementById('spots-done-toggle').checked = !!h.spotsDone;
   document.getElementById('mark-tee').classList.toggle('is-active', markEndpoint === 'tee');
@@ -1532,22 +1784,21 @@ function imageDirInData() {
    what gets checked -- no proxy, no guessing. */
 let imageReachability = { checked: false, broken: [], probed: 0 };
 
-function probeImage(src) {
-  return new Promise(resolve => {
-    const img = new Image();
-    img.onload = () => resolve(true);
-    img.onerror = () => resolve(false);
-    img.src = src + (src.includes('?') ? '&' : '?') + 'probe=' + Date.now();
-  });
-}
+/* probeImage lives in app.js. This used to be a second copy of it here, which
+   overrode that one for every caller because admin.js loads later. */
 
 async function checkImagesReachable() {
   const refs = [];
+  const local = localImages();
   ['east', 'west'].forEach(k => ((state[k] && state[k].holes) || []).forEach(h => {
     // Images still pending in this session are blobs -- always fine.
     const key = holeKey(k, h.number);
     if (h.image && h.image.src && !pendingImages[key]) {
-      refs.push({ course: k, n: h.number, resolved: resolveImageSrc(h.image.src), stored: h.image.src });
+      refs.push({ course: k, n: h.number, key,
+        resolved: resolveImageSrc(h.image.src), stored: h.image.src,
+        // Made here, never published, and the bytes are gone: not a path
+        // problem at all, and no amount of checking capitals will help.
+        orphan: !!local[key] });
     }
   }));
 
@@ -1555,7 +1806,8 @@ async function checkImagesReachable() {
   const sample = refs.slice(0, 4);
   const broken = [];
   for (const r of sample) {
-    if (!(await probeImage(r.resolved))) broken.push(r);
+    // bust: the point is to re-check a file that may have just been committed.
+    if (!(await probeImage(r.resolved, true))) broken.push(r);
   }
   imageReachability = { checked: true, broken, probed: sample.length };
   updateSyncUi();
@@ -1566,6 +1818,23 @@ function imageWarningText() {
   if (!r.checked || !r.broken.length) return '';
   const b = r.broken[0];
   const allBroken = r.broken.length === r.probed;
+
+  /* The orphan case first, because it is the one where the standard advice is
+     actively misleading. The file was captured or uploaded in this browser and
+     never committed, so it does not exist in the repository, on this machine,
+     or anywhere else. Checking the spelling of a file that was never published
+     just wastes time. */
+  const orphans = r.broken.filter(x => x.orphan);
+  if (orphans.length) {
+    const names = orphans.map(o => `${o.course === 'east' ? 'East' : 'West'} ${o.n}`).join(', ');
+    return `${orphans.length} hole image${orphans.length === 1 ? ' was' : 's were'} `
+      + `created here but never saved to GitHub (${names}), and the file `
+      + `${orphans.length === 1 ? 'itself is' : 'themselves are'} gone — closing the `
+      + `tab before saving discards the picture, though the hole data kept `
+      + `pointing at it. Nothing is wrong with the name or the path. `
+      + `Upload or re-capture ${orphans.length === 1 ? 'that hole' : 'those holes'}, `
+      + `and this time Save to GitHub before leaving the page.`;
+  }
 
   let msg = (allBroken && r.probed > 1
       ? 'None of the hole images load. '
@@ -1660,13 +1929,11 @@ async function saveToGitHub(isAuto) {
 
     const res = await ghCommitFiles(cfg, files, msg, m => setSyncStatus(m));
 
-    // Committed images are no longer pending.
+    // Committed images are no longer pending -- drop them from memory AND
+    // from IndexedDB, since the repository is now the copy of record.
     images.forEach(p => {
       Object.keys(pendingImages).forEach(k => {
-        if (pendingImages[k] === p) {
-          URL.revokeObjectURL(p.url);
-          delete pendingImages[k];
-        }
+        if (pendingImages[k] === p) clearPendingImage(k);
       });
     });
 

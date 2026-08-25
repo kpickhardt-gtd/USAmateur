@@ -120,6 +120,21 @@
 <!-- ============ STAGE 1 ============ -->
 <section class="admin-panel" id="stage-1-panel">
   <h2 class="hole-info__heading">Stage 1 — make the hole image</h2>
+
+  <!-- Imagery choice. Google is deliberately absent: its Map Tiles policies
+       forbid storing or caching tiles, which is exactly what compositing one
+       into a committed .jpg does. -->
+  <div class="imagery-picker">
+    <label class="imagery-picker__label" for="imagery-source">Imagery</label>
+    <select id="imagery-source" class="admin-select"></select>
+    <p class="imagery-picker__note" id="imagery-note"></p>
+    <p class="imagery-picker__detail" id="imagery-detail"></p>
+
+    <label class="imagery-picker__label" for="capture-size" style="margin-top:10px">Capture size</label>
+    <select id="capture-size" class="admin-select"></select>
+    <p class="imagery-picker__note" id="capture-size-note"></p>
+  </div>
+
   <p class="admin-instructions">
     Place the <strong>tee box</strong> and the <strong>top of the green</strong> on the satellite map.
     Each pin appears as soon as you click. The view rotates and scales itself to the tee→green

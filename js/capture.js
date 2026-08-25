@@ -14,12 +14,26 @@
    ============================================================ */
 
 const TILE_SIZE = 256;
-const MAX_TILE_ZOOM = 19;      // Esri World Imagery native limit
 const CAPTURE_QUALITY = 0.85;
 
-/* Satellite imagery runs out of detail around zoom 19 (~0.3 m/pixel). A short
-   par 3 stretched across 2048px would need far finer imagery than exists, so
-   rather than emit a blurry upscale we shrink the output image instead. The
+/* Deepest zoom a capture will ask for.
+   ------------------------------------
+   This was 19, hardcoded, with the comment "Esri World Imagery native limit".
+   That was simply wrong: Esri defines levels of detail down to 23 (about 2cm
+   per pixel) and serves well past 19 in metro areas. Capping at 19 held every
+   capture to ~30cm per pixel and made the imagery look far worse than what
+   was actually available -- the reason for reaching for another provider in
+   the first place.
+
+   The real limit is per-source AND per-place, so it is passed in by the caller
+   after probing (probeMaxZoom in app.js). This constant is only the outer
+   bound, and the floor below which something is clearly wrong. */
+const MAX_TILE_ZOOM = 23;
+const MIN_TILE_ZOOM = 15;
+
+/* Even at the deepest available zoom, imagery eventually runs out of detail.
+   A short par 3 stretched across 2048px can need finer imagery than exists,
+   so rather than emit a blurry upscale we shrink the output image instead. The
    FRAMING is unchanged (tee still at 8%, green at 92%, centred) -- there are
    simply fewer pixels, which is the honest result. */
 const MAX_UPSCALE = 1.5;
@@ -123,7 +137,9 @@ function captureGeometryPass(opts) {
 
   // Prefer downscaling over upscaling: round the zoom UP.
   let zoom = Math.ceil(Math.log2(desiredAxisPx / axis0));
-  zoom = Math.max(0, Math.min(MAX_TILE_ZOOM, zoom));
+  const ceiling = Math.max(MIN_TILE_ZOOM,
+    Math.min(MAX_TILE_ZOOM, opts.maxZoom || MAX_TILE_ZOOM));
+  zoom = Math.max(0, Math.min(ceiling, zoom));
 
   const tee = lngLatToWorldPx(opts.tee.lat, opts.tee.lng, zoom);
   const green = lngLatToWorldPx(opts.green.lat, opts.green.lng, zoom);
@@ -183,7 +199,8 @@ async function captureHoleImage(opts) {
     width: opts.width || CAPTURE_WIDTH,
     height: opts.height || CAPTURE_HEIGHT,
     padFrac: opts.padFrac === undefined ? CAPTURE_PAD_FRAC : opts.padFrac,
-    zoomNudge: opts.zoomNudge, bearingNudge: opts.bearingNudge
+    zoomNudge: opts.zoomNudge, bearingNudge: opts.bearingNudge,
+    maxZoom: opts.maxZoom
   });
 
   const canvas = document.createElement('canvas');
@@ -202,8 +219,26 @@ async function captureHoleImage(opts) {
       jobs.push({ tx, ty, url: tileUrl(opts.tileUrl || SATELLITE_TILE_URL, geo.zoom, wrapped, ty) });
     }
   }
-  if (jobs.length > 400) {
-    throw new Error(`Capture would need ${jobs.length} tiles — check the tee and green pins.`);
+  /* GUARD THE RIGHT THING
+     ---------------------
+     This used to refuse any capture needing more than 400 tiles, on the
+     reasoning that a huge tile count means misplaced pins. It does not: tile
+     count rises with output size and zoom as well as with distance, so a
+     legitimate 4096px capture at zoom 20 needs ~800 tiles and was rejected
+     with a message telling you to check pins that were perfectly correct.
+
+     Distance is the honest test for "these pins are wrong": no golf hole is
+     1.5km long. So the sanity check measures the hole, and the tile count is
+     only a ceiling on work, set high enough not to block a real capture. */
+  const spanMeters = pathLengthMeters(opts.tee, opts.shots || [], opts.green);
+  if (spanMeters > 1500) {
+    throw new Error(`The tee and green are ${Math.round(spanMeters)}m apart, which is `
+      + 'far longer than any golf hole — check the pins are both on this hole.');
+  }
+  const MAX_TILES = 1600;
+  if (jobs.length > MAX_TILES) {
+    throw new Error(`This capture needs ${jobs.length} imagery tiles, past the `
+      + `${MAX_TILES} limit. Choose a smaller capture size in stage 1.`);
   }
 
   const results = await Promise.all(jobs.map(j => loadTile(j.url).then(r => ({ ...j, ...r }))));

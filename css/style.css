@@ -508,6 +508,42 @@ a { text-decoration: none; color: inherit; }
   letter-spacing: 0.03em;
 }
 
+/* Imagery source picker. */
+.imagery-picker {
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  background: #f7f4ec;
+  border: 1px solid #e0d8c4;
+  border-radius: var(--radius);
+}
+.imagery-picker__label {
+  display: block;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #7a6b4f;
+  margin-bottom: 5px;
+}
+/* Matches the course/hole selects above rather than inventing a second style. */
+.imagery-picker .admin-select {
+  width: 100%;
+  font: inherit;
+  font-size: 15px;
+  padding: 8px 10px;
+  border-radius: var(--radius);
+  border: 1px solid #d8d3c3;
+  background: #fff;
+  color: var(--ink);
+}
+.imagery-picker__note,
+.imagery-picker__detail {
+  margin: 6px 0 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: #6a5533;
+}
+.imagery-picker__detail { color: #4a7c52; font-weight: 500; }
+
 /* Confirmation that an upload landed. The file input clears itself, so this
    is the only thing on screen that says so -- it has to read as a result. */
 .upload-state {
