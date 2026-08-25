@@ -1,5 +1,5 @@
 // Hole images and marshal stations.
-// Saved from admin.html on 2026-08-25T17:50:45.312Z
+// Saved from admin.html on 2026-08-25T17:54:41.473Z
 //
 // savedAt is read back by the admin so it can tell whether this file or
 // a browser draft is the newer one, rather than making you guess.
@@ -64,24 +64,26 @@ const HOLES_DATA = {
               "lat": 43.11193187186771,
               "lng": -77.52941705522404
             }
-          ]
+          ],
+          "imagery": "esri",
+          "capturedZoom": 19
         },
         "image": {
-          "src": "images/holes/east-01.png",
-          "width": 2412,
-          "height": 983,
+          "src": "images/holes/east-01.jpg",
+          "width": 3072,
+          "height": 1728,
           "tee": {
-            "x": 0.07999999999854655,
+            "x": 0.07999999999854662,
             "y": 0.499999999996757
           },
           "green": {
             "x": 0.9199999999985465,
-            "y": 0.499999999996757
+            "y": 0.49999999999675687
           },
           "shots": [
             {
               "x": 0.6145455876227749,
-              "y": 0.598084611818572
+              "y": 0.5980846118185719
             }
           ]
         },
@@ -1512,5 +1514,5 @@ const HOLES_DATA = {
       }
     ]
   },
-  "savedAt": "2026-08-25T17:50:45.312Z"
+  "savedAt": "2026-08-25T17:54:41.473Z"
 };
