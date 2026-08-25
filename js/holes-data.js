@@ -1,5 +1,5 @@
 // Hole images and marshal stations.
-// Saved from admin.html on 2026-08-25T01:22:12.658Z
+// Saved from admin.html on 2026-08-25T16:02:59.315Z
 const HOLES_DATA = {
   "east": {
     "name": "Oak Hill East",
@@ -64,9 +64,9 @@ const HOLES_DATA = {
           ]
         },
         "image": {
-          "src": "east-01.jpg",
-          "width": 2048,
-          "height": 1152,
+          "src": "images/holes/east-01.png",
+          "width": 2412,
+          "height": 983,
           "tee": {
             "x": 0.07999999999854655,
             "y": 0.499999999996757
@@ -82,7 +82,7 @@ const HOLES_DATA = {
             }
           ]
         },
-        "imageReady": true,
+        "imageReady": false,
         "spotsDone": true,
         "lengthYards": 455.95875144876965
       },
@@ -787,19 +787,21 @@ const HOLES_DATA = {
           },
           "bearingNudge": 0,
           "zoomNudge": 0,
-          "shots": []
+          "shots": [],
+          "imagery": "esri",
+          "capturedZoom": 21
         },
         "image": {
           "src": "images/holes/east-15.jpg",
-          "width": 1238,
-          "height": 696,
+          "width": 3072,
+          "height": 1728,
           "tee": {
             "x": 0.08000000000426524,
-            "y": 0.49999999999737343
+            "y": 0.4999999999973748
           },
           "green": {
             "x": 0.9200000000042654,
-            "y": 0.4999999999973731
+            "y": 0.49999999999737454
           },
           "shots": []
         },
@@ -991,7 +993,9 @@ const HOLES_DATA = {
         },
         "image": null,
         "imageReady": false,
-        "spotsDone": false
+        "spotsDone": false,
+        "lengthYards": 400,
+        "lengthAssumed": true
       },
       {
         "number": 2,
@@ -1019,7 +1023,9 @@ const HOLES_DATA = {
         },
         "image": null,
         "imageReady": false,
-        "spotsDone": false
+        "spotsDone": false,
+        "lengthYards": 400,
+        "lengthAssumed": true
       },
       {
         "number": 3,
@@ -1047,7 +1053,9 @@ const HOLES_DATA = {
         },
         "image": null,
         "imageReady": false,
-        "spotsDone": false
+        "spotsDone": false,
+        "lengthYards": 400,
+        "lengthAssumed": true
       },
       {
         "number": 4,
@@ -1075,7 +1083,9 @@ const HOLES_DATA = {
         },
         "image": null,
         "imageReady": false,
-        "spotsDone": false
+        "spotsDone": false,
+        "lengthYards": 400,
+        "lengthAssumed": true
       },
       {
         "number": 5,
@@ -1103,7 +1113,9 @@ const HOLES_DATA = {
         },
         "image": null,
         "imageReady": false,
-        "spotsDone": false
+        "spotsDone": false,
+        "lengthYards": 400,
+        "lengthAssumed": true
       },
       {
         "number": 6,
@@ -1131,7 +1143,9 @@ const HOLES_DATA = {
         },
         "image": null,
         "imageReady": false,
-        "spotsDone": false
+        "spotsDone": false,
+        "lengthYards": 400,
+        "lengthAssumed": true
       },
       {
         "number": 7,
@@ -1159,7 +1173,9 @@ const HOLES_DATA = {
         },
         "image": null,
         "imageReady": false,
-        "spotsDone": false
+        "spotsDone": false,
+        "lengthYards": 400,
+        "lengthAssumed": true
       },
       {
         "number": 8,
@@ -1187,7 +1203,9 @@ const HOLES_DATA = {
         },
         "image": null,
         "imageReady": false,
-        "spotsDone": false
+        "spotsDone": false,
+        "lengthYards": 400,
+        "lengthAssumed": true
       },
       {
         "number": 9,
@@ -1215,7 +1233,9 @@ const HOLES_DATA = {
         },
         "image": null,
         "imageReady": false,
-        "spotsDone": false
+        "spotsDone": false,
+        "lengthYards": 400,
+        "lengthAssumed": true
       },
       {
         "number": 10,
@@ -1243,7 +1263,9 @@ const HOLES_DATA = {
         },
         "image": null,
         "imageReady": false,
-        "spotsDone": false
+        "spotsDone": false,
+        "lengthYards": 400,
+        "lengthAssumed": true
       },
       {
         "number": 11,
@@ -1271,7 +1293,9 @@ const HOLES_DATA = {
         },
         "image": null,
         "imageReady": false,
-        "spotsDone": false
+        "spotsDone": false,
+        "lengthYards": 400,
+        "lengthAssumed": true
       },
       {
         "number": 12,
@@ -1299,7 +1323,9 @@ const HOLES_DATA = {
         },
         "image": null,
         "imageReady": false,
-        "spotsDone": false
+        "spotsDone": false,
+        "lengthYards": 400,
+        "lengthAssumed": true
       },
       {
         "number": 13,
@@ -1327,7 +1353,9 @@ const HOLES_DATA = {
         },
         "image": null,
         "imageReady": false,
-        "spotsDone": false
+        "spotsDone": false,
+        "lengthYards": 400,
+        "lengthAssumed": true
       },
       {
         "number": 14,
@@ -1355,7 +1383,9 @@ const HOLES_DATA = {
         },
         "image": null,
         "imageReady": false,
-        "spotsDone": false
+        "spotsDone": false,
+        "lengthYards": 400,
+        "lengthAssumed": true
       },
       {
         "number": 15,
@@ -1383,7 +1413,9 @@ const HOLES_DATA = {
         },
         "image": null,
         "imageReady": false,
-        "spotsDone": false
+        "spotsDone": false,
+        "lengthYards": 400,
+        "lengthAssumed": true
       },
       {
         "number": 16,
@@ -1411,7 +1443,9 @@ const HOLES_DATA = {
         },
         "image": null,
         "imageReady": false,
-        "spotsDone": false
+        "spotsDone": false,
+        "lengthYards": 400,
+        "lengthAssumed": true
       },
       {
         "number": 17,
@@ -1439,7 +1473,9 @@ const HOLES_DATA = {
         },
         "image": null,
         "imageReady": false,
-        "spotsDone": false
+        "spotsDone": false,
+        "lengthYards": 400,
+        "lengthAssumed": true
       },
       {
         "number": 18,
@@ -1467,7 +1503,9 @@ const HOLES_DATA = {
         },
         "image": null,
         "imageReady": false,
-        "spotsDone": false
+        "spotsDone": false,
+        "lengthYards": 400,
+        "lengthAssumed": true
       }
     ]
   }
