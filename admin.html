@@ -133,6 +133,15 @@
     <label class="imagery-picker__label" for="capture-size" style="margin-top:10px">Capture size</label>
     <select id="capture-size" class="admin-select"></select>
     <p class="imagery-picker__note" id="capture-size-note"></p>
+
+    <!-- The override for when automatic coverage detection gets it wrong.
+         Zoom 19 is what this tool used before the ceiling was raised. -->
+    <label class="imagery-picker__label" for="zoom-cap" style="margin-top:10px">Maximum zoom</label>
+    <select id="zoom-cap" class="admin-select"></select>
+    <p class="imagery-picker__note">
+      If captures come back reading &ldquo;Map data not available&rdquo;, set this to
+      <strong>19</strong> — imagery exists there almost everywhere.
+    </p>
   </div>
 
   <p class="admin-instructions">

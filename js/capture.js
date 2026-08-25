@@ -79,30 +79,63 @@ function loadTile(url) {
    Reading pixels needs the CORS-clean image the capture already requires, so
    this costs nothing extra. If the read throws (a tainted canvas), we say
    "not blank" rather than discarding good imagery on a technicality. */
-const BLANK_STDDEV = 9;      // aerial imagery sits far above this
-const BLANK_COLOURS = 12;    // distinct 4-bit-per-channel colours
+/* WHAT THE FIRST VERSION GOT WRONG
+   -------------------------------
+   It required BOTH a low standard deviation AND very few distinct colours,
+   with thresholds picked against a placeholder I had invented for the tests
+   rather than the one Esri actually serves. The real tile has anti-aliased
+   text on it, which lifts both numbers past those limits, so it sailed
+   through as "real imagery" and captures kept coming back as the message.
+
+   The rewrite leans on the one property a placeholder cannot avoid and aerial
+   imagery essentially never has: it is overwhelmingly ONE flat colour. A
+   background tone with a line of text on it is 85-95% background. Photography
+   of a golf course -- even a mown fairway -- is far more varied than that once
+   you allow 32 levels per channel.
+
+   Dominant-colour fraction is therefore the primary test, and it needs no
+   knowledge of what the placeholder looks like. The old flat/low-variance test
+   is kept as a secondary catch for a plain solid tile with no text at all. */
+const BLANK_DOMINANT = 0.80;   // share of pixels in one quantised colour
+const BLANK_STDDEV = 6;
+const BLANK_COLOURS = 24;
+
+function tileStats(img) {
+  const S = 48;
+  const c = document.createElement('canvas');
+  c.width = S; c.height = S;
+  const x = c.getContext('2d', { willReadFrequently: true });
+  x.drawImage(img, 0, 0, S, S);
+  const px = x.getImageData(0, 0, S, S).data;
+
+  const counts = Object.create(null);
+  let n = 0, sum = 0, sumSq = 0, distinct = 0, top = 0;
+  for (let i = 0; i < px.length; i += 4) {
+    const lum = 0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2];
+    sum += lum; sumSq += lum * lum; n++;
+    // 5 bits per channel: tolerant of JPEG noise, still separates real tones.
+    const key = ((px[i] >> 3) << 10) | ((px[i + 1] >> 3) << 5) | (px[i + 2] >> 3);
+    const v = (counts[key] = (counts[key] || 0) + 1);
+    if (v === 1) distinct++;
+    if (v > top) top = v;
+  }
+  if (!n) return null;
+  return {
+    dominant: top / n,
+    distinct,
+    stddev: Math.sqrt(Math.max(0, sumSq / n - (sum / n) * (sum / n)))
+  };
+}
 
 function tileIsBlank(img) {
   try {
-    const S = 32;
-    const c = document.createElement('canvas');
-    c.width = S; c.height = S;
-    const x = c.getContext('2d', { willReadFrequently: true });
-    x.drawImage(img, 0, 0, S, S);
-    const px = x.getImageData(0, 0, S, S).data;
-
-    const seen = Object.create(null);
-    let n = 0, sum = 0, sumSq = 0, distinct = 0;
-    for (let i = 0; i < px.length; i += 4) {
-      const lum = 0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2];
-      sum += lum; sumSq += lum * lum; n++;
-      const key = (px[i] >> 4) * 256 + (px[i + 1] >> 4) * 16 + (px[i + 2] >> 4);
-      if (!seen[key]) { seen[key] = 1; distinct++; }
-    }
-    if (!n) return false;
-    const stddev = Math.sqrt(Math.max(0, sumSq / n - (sum / n) * (sum / n)));
-    return stddev < BLANK_STDDEV && distinct < BLANK_COLOURS;
+    const s = tileStats(img);
+    if (!s) return false;
+    if (s.dominant > BLANK_DOMINANT) return true;
+    return s.stddev < BLANK_STDDEV && s.distinct < BLANK_COLOURS;
   } catch (e) {
+    // Cross-origin read refused. Say "not blank" rather than throwing away
+    // imagery that is probably fine.
     return false;
   }
 }

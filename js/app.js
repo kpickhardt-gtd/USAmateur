@@ -27,7 +27,7 @@
 /* Bumped whenever the code changes. Shown in the admin header so you can tell
    at a glance whether the browser is running the version you just uploaded,
    rather than a cached copy. */
-const BUILD_STAMP = '2026-08-25j';
+const BUILD_STAMP = '2026-08-25k';
 
 /* ---------- imagery sources (stage 1 only) ----------
 

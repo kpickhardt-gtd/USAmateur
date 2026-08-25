@@ -37,6 +37,33 @@ let imagerySourceKey = (function () {
   catch (e) { return DEFAULT_IMAGERY; }
 })();
 
+/* Deepest zoom captures may use.
+
+   WHY THIS IS A CONTROL AND NOT JUST A PROBE
+   ------------------------------------------
+   Automatic detection has already been wrong once here, and when it is wrong
+   the failure is expensive: every captured hole comes back as a picture of
+   "Map data not available". A heuristic guarding that needs an override that
+   doesn't depend on the heuristic being right.
+
+   'auto' probes, and is the better answer when it works. A number pins the
+   ceiling regardless of what detection thinks -- 19 is the level this tool used
+   for its whole life before the ceiling was raised, so it is the known-good
+   fallback if anything about the automatic path misbehaves. */
+const ZOOM_CAP_KEY = 'oakhill_zoom_cap_v1';
+let zoomCapKey = (function () {
+  try { return localStorage.getItem(ZOOM_CAP_KEY) || 'auto'; }
+  catch (e) { return 'auto'; }
+})();
+
+const ZOOM_CAPS = [
+  { value: 'auto', label: 'Automatic — use the deepest imagery found' },
+  { value: '21', label: 'Zoom 21 — sharpest, only where coverage is very good' },
+  { value: '20', label: 'Zoom 20' },
+  { value: '19', label: 'Zoom 19 — safe everywhere' },
+  { value: '18', label: 'Zoom 18 — coarse, for poor coverage' }
+];
+
 /* Output size for captures. The thing that actually governs sharpness. */
 const CAPTURE_SIZE_KEY = 'oakhill_capture_size_v1';
 let captureSizeKey = (function () {
@@ -757,6 +784,22 @@ function initAdmin() {
     imgSel.addEventListener('change', e => setImagerySource(e.target.value));
   }
 
+  const capSel = document.getElementById('zoom-cap');
+  if (capSel) {
+    capSel.innerHTML = ZOOM_CAPS.map(z =>
+      `<option value="${z.value}">${escapeHtml(z.label)}</option>`).join('');
+    capSel.value = zoomCapKey;
+    capSel.addEventListener('change', e => {
+      zoomCapKey = e.target.value;
+      try { localStorage.setItem(ZOOM_CAP_KEY, zoomCapKey); } catch (err) { /* ignore */ }
+      reportImageryDetail();
+      setStatus(zoomCapKey === 'auto'
+        ? 'Maximum zoom: automatic. Existing images are unchanged — re-capture to use it.'
+        : `Maximum zoom pinned to ${zoomCapKey}. Existing images are unchanged — `
+          + 're-capture a hole to use it.');
+    });
+  }
+
   const sizeSel = document.getElementById('capture-size');
   if (sizeSel) {
     sizeSel.innerHTML = Object.keys(CAPTURE_SIZES).map(k =>
@@ -923,8 +966,9 @@ async function reportImageryDetail() {
   const c = geoMap ? geoMap.getCenter() : { lat: 43.1123, lng: -77.5305 };
   el.textContent = 'Checking available detail…';
   try {
-    const z = await probeMaxZoom(key, c.lat, c.lng);
+    const probed = await probeMaxZoom(key, c.lat, c.lng);
     if (key !== imagerySourceKey) return;     // switched while we were asking
+    const z = zoomCapKey === 'auto' ? probed : Math.min(probed, parseInt(zoomCapKey, 10));
 
     /* Hold the LIVE map to the same limit. Otherwise zooming past coverage
        fills the screen with "Map data not available" tiles, which look like a
@@ -938,9 +982,12 @@ async function reportImageryDetail() {
     // Ground resolution at the equator, corrected for latitude.
     const mPerPx = 156543.03392 * Math.cos(c.lat * Math.PI / 180) / Math.pow(2, z);
     const cm = mPerPx * 100;
-    el.textContent = `Real detail here: zoom ${z}, about `
+    el.textContent = `Captures will use zoom ${z}, about `
       + (cm < 100 ? `${cm.toFixed(0)} cm` : `${(cm / 100).toFixed(1)} m`)
-      + ' per pixel. Captures use this automatically.';
+      + ' per pixel'
+      + (zoomCapKey === 'auto'
+          ? ` (deepest imagery found here: ${probed}).`
+          : ` (pinned; deepest found here: ${probed}).`);
   } catch (e) {
     el.textContent = '';
   }
@@ -1172,7 +1219,9 @@ async function captureCurrentHole() {
   try {
     // Ask for the deepest zoom this source actually serves at this hole, not a
     // hardcoded guess -- that guess was costing most of the available detail.
-    const maxZoom = await probeMaxZoom(imagerySourceKey, h.source.tee.lat, h.source.tee.lng);
+    const maxZoom = zoomCapKey === 'auto'
+      ? await probeMaxZoom(imagerySourceKey, h.source.tee.lat, h.source.tee.lng)
+      : parseInt(zoomCapKey, 10);
     const size = captureSize(captureSizeKey);
     const res = await captureHoleImage({
       tee: h.source.tee, green: h.source.green,
@@ -1212,14 +1261,19 @@ async function captureCurrentHole() {
     if (res.zoomedOutToFit) extra.push(`zoomed out ${res.zoomedOutToFit}× so the dogleg fits`);
     // The real numbers, because "is this sharper?" should not be a guess.
     extra.push(`zoom ${res.zoom}, ${Math.round(res.blob.size / 1024)} KB`);
+    /* The blank-tile count is always reported, not just on failure. Detection
+       here has been wrong before; a number on screen is what makes that
+       checkable instead of something you discover in a downloaded file. */
     if (res.coverageWarning) {
-      // Better to say the picture is unusable than to let 36 of them ship.
-      setStatus(`Captured ${filename}, but ${src.label} has no imagery here even at `
-        + `zoom ${res.zoom} — most of the picture is "Map data not available". `
-        + 'Try another imagery source, or upload an image for this hole.');
+      setStatus(`Captured ${filename}, but ${res.tilesBlank} of ${res.tilesLoaded} `
+        + `imagery tiles came back as "Map data not available" — even at zoom `
+        + `${res.zoom}. Set "Maximum zoom" to 19, try another imagery source, or `
+        + 'upload an image for this hole.');
     } else {
       setStatus(`Captured ${filename} at ${res.image.width}×${res.image.height} `
-        + `from ${src.label} — ${extra.join('; ')}.`);
+        + `from ${src.label} — ${extra.join('; ')}`
+        + (res.tilesBlank ? `; ${res.tilesBlank} of ${res.tilesLoaded} tiles blank` : '')
+        + '.');
     }
     markDirty();
     refreshUi();
