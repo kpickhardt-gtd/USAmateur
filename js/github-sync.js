@@ -147,8 +147,11 @@ async function ghApi(path, opts) {
       // Most common causes, in the order they actually happen.
       let hint = '';
       if (/fast forward/i.test(detail)) {
-        hint = ' Something else pushed to the branch since this page loaded — '
-             + 'reload the admin page and save again.';
+        // By the time this surfaces, the rebase-and-retry has already run out
+        // of attempts, so "try again" is not the useful advice.
+        hint = ' The branch kept moving while saving, through several retries. '
+             + 'That usually means another admin tab is auto-saving at the same '
+             + 'time — close the other tab, then save again.';
       } else if (/tree|path|blob/i.test(detail)) {
         hint = ' A file path in the commit was rejected. Use "Show what will be saved" '
              + 'to see the exact paths being sent.';
@@ -234,16 +237,20 @@ async function ghFileSha(cfg, path) {
   return res && res.sha ? res.sha : null;
 }
 
-/* Commit every file in one go. Returns { commitSha, url, files }. */
+/* Commit every file in one go.
+
+   If the branch moves underneath us between reading its head and moving it,
+   GitHub rejects the ref update with 422 "not a fast forward". That happens
+   whenever anything else pushes during the upload window -- another admin tab
+   auto-saving, or a commit made on github.com. Rather than surface that as an
+   error and make you redo the save, we rebuild the commit on the NEW head and
+   retry. Blobs are content-addressed, so they're uploaded once and reused.
+
+   Rebasing this way keeps whatever the other push added and re-applies our
+   files on top, which is the behaviour you want: nothing is silently lost. */
 async function ghCommitFiles(cfg, files, message, onProgress) {
   const step = (msg) => { if (onProgress) onProgress(msg); };
-
-  step('Reading the branch…');
-  const ref = await ghApi(`/repos/${cfg.owner}/${cfg.repo}/git/ref/heads/${cfg.branch}`);
-  const headSha = ref.object.sha;
-
-  const headCommit = await ghApi(`/repos/${cfg.owner}/${cfg.repo}/git/commits/${headSha}`);
-  const baseTree = headCommit.tree.sha;
+  const MAX_ATTEMPTS = 4;
 
   const blobs = [];
   for (let i = 0; i < files.length; i++) {
@@ -251,29 +258,44 @@ async function ghCommitFiles(cfg, files, message, onProgress) {
     blobs.push(await ghBlobFor(cfg, files[i]));
   }
 
-  step('Building the commit…');
-  const tree = await ghApi(`/repos/${cfg.owner}/${cfg.repo}/git/trees`, {
-    method: 'POST',
-    body: {
-      base_tree: baseTree,
-      tree: blobs.map(b => ({ path: b.path, mode: '100644', type: 'blob', sha: b.sha }))
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    step(attempt === 1
+      ? 'Building the commit…'
+      : `The branch moved — rebuilding on the latest commit (attempt ${attempt} of ${MAX_ATTEMPTS})…`);
+
+    const ref = await ghApi(`/repos/${cfg.owner}/${cfg.repo}/git/ref/heads/${cfg.branch}`);
+    const headSha = ref.object.sha;
+    const headCommit = await ghApi(`/repos/${cfg.owner}/${cfg.repo}/git/commits/${headSha}`);
+
+    const tree = await ghApi(`/repos/${cfg.owner}/${cfg.repo}/git/trees`, {
+      method: 'POST',
+      body: {
+        base_tree: headCommit.tree.sha,
+        tree: blobs.map(b => ({ path: b.path, mode: '100644', type: 'blob', sha: b.sha }))
+      }
+    });
+
+    const commit = await ghApi(`/repos/${cfg.owner}/${cfg.repo}/git/commits`, {
+      method: 'POST',
+      body: { message, tree: tree.sha, parents: [headSha] }
+    });
+
+    try {
+      step('Moving the branch…');
+      await ghApi(`/repos/${cfg.owner}/${cfg.repo}/git/refs/heads/${cfg.branch}`, {
+        method: 'PATCH',
+        body: { sha: commit.sha, force: false }
+      });
+      return {
+        commitSha: commit.sha,
+        shortSha: commit.sha.slice(0, 7),
+        files: files.map(f => f.path),
+        attempts: attempt
+      };
+    } catch (err) {
+      const notFastForward = /fast forward/i.test((err.detail || '') + ' ' + (err.message || ''));
+      if (!notFastForward || attempt === MAX_ATTEMPTS) throw err;
+      // else: loop round, re-read the head, and rebuild on top of it
     }
-  });
-
-  const commit = await ghApi(`/repos/${cfg.owner}/${cfg.repo}/git/commits`, {
-    method: 'POST',
-    body: { message, tree: tree.sha, parents: [headSha] }
-  });
-
-  step('Moving the branch…');
-  await ghApi(`/repos/${cfg.owner}/${cfg.repo}/git/refs/heads/${cfg.branch}`, {
-    method: 'PATCH',
-    body: { sha: commit.sha, force: false }
-  });
-
-  return {
-    commitSha: commit.sha,
-    shortSha: commit.sha.slice(0, 7),
-    files: files.map(f => f.path)
-  };
+  }
 }

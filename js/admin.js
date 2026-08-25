@@ -269,6 +269,7 @@ function initAdmin() {
   loadHole();
   renderProgress();
   if (loaded.fromDraft) checkDraftConflict();
+  checkImagesReachable();   // async; updates the badge when it finishes
 
   window.addEventListener('resize', debounce(() => {
     if (geoMap) geoMap.invalidateSize();
@@ -1150,7 +1151,7 @@ function updateSyncUi() {
 
   // Shown ahead of everything else: if the deployed build disagrees with the
   // data about where images live, nothing else about this panel matters.
-  const warn = layoutWarningText();
+  const warn = imageWarningText();
   if (warn) {
     badge.textContent = warn;
     badge.className = 'gh-unsaved gh-unsaved--warn';
@@ -1236,24 +1237,68 @@ function imageDirInData() {
   return dir;
 }
 
-/* Catches the case where folder-build data is loaded by flat-build code, or
-   vice versa -- which silently writes images to the wrong place. */
-function layoutMismatch() {
-  const dataDir = imageDirInData();
-  if (dataDir === null) return null;          // nothing to compare against yet
-  if (dataDir === IMAGE_BASE) return null;
-  return { dataDir, buildDir: IMAGE_BASE };
+/* Whether the hole images this data references actually LOAD from where this
+   build looks for them.
+
+   An earlier version of this compared stored path strings against IMAGE_BASE,
+   which raised false alarms: resolveImageSrc() already normalises a stored
+   path, so data written by the other layout displays perfectly well. The only
+   thing that genuinely matters is whether the file is reachable, so that is
+   what gets checked -- no proxy, no guessing. */
+let imageReachability = { checked: false, broken: [], probed: 0 };
+
+function probeImage(src) {
+  return new Promise(resolve => {
+    const img = new Image();
+    img.onload = () => resolve(true);
+    img.onerror = () => resolve(false);
+    img.src = src + (src.includes('?') ? '&' : '?') + 'probe=' + Date.now();
+  });
 }
 
-function layoutWarningText() {
-  const m = layoutMismatch();
-  if (!m) return '';
-  const show = d => d === '' ? 'the repository root' : d;
-  return `Wrong build deployed? Your hole data stores images in ${show(m.dataDir)}, `
-       + `but this copy of the site saves them to ${show(m.buildDir)}. `
-       + `New captures will go to the wrong place. Check you uploaded the `
-       + `${m.buildDir === '' ? 'FLAT' : 'FOLDER'}-build files to a `
-       + `${m.dataDir === '' ? 'FLAT' : 'FOLDER'}-layout repository.`;
+async function checkImagesReachable() {
+  const refs = [];
+  ['east', 'west'].forEach(k => ((state[k] && state[k].holes) || []).forEach(h => {
+    // Images still pending in this session are blobs -- always fine.
+    const key = holeKey(k, h.number);
+    if (h.image && h.image.src && !pendingImages[key]) {
+      refs.push({ course: k, n: h.number, resolved: resolveImageSrc(h.image.src), stored: h.image.src });
+    }
+  }));
+
+  // A handful is enough to tell a layout problem from a one-off missing file.
+  const sample = refs.slice(0, 4);
+  const broken = [];
+  for (const r of sample) {
+    if (!(await probeImage(r.resolved))) broken.push(r);
+  }
+  imageReachability = { checked: true, broken, probed: sample.length };
+  updateSyncUi();
+}
+
+function imageWarningText() {
+  const r = imageReachability;
+  if (!r.checked || !r.broken.length) return '';
+  const b = r.broken[0];
+  const allBroken = r.broken.length === r.probed;
+
+  let msg = (allBroken && r.probed > 1
+      ? 'None of the hole images load. '
+      : `Hole ${b.n} image doesn't load. `)
+    + `This page looks for it at "${b.resolved}"`
+    + (b.stored !== b.resolved ? ` (the data stores it as "${b.stored}")` : '')
+    + '. ';
+
+  // Everything failing points at the files being somewhere else entirely,
+  // rather than one bad filename.
+  if (allBroken) {
+    msg += 'If the .jpg files are in the repository root while this build expects '
+         + `"${IMAGE_BASE || 'the root'}", either the wrong build is deployed or the `
+         + 'files need moving — re-capturing a hole writes it to the right place. ';
+  }
+  msg += 'Otherwise check the file was committed, and that its name matches exactly, '
+       + 'including capitals.';
+  return msg;
 }
 
 /* Exactly what a save would write, without writing it. The paths are the
@@ -1274,7 +1319,7 @@ function showWhatWillBeSaved() {
     `Your data stores images in: ${dataDir === null ? '(none yet)' : (dataDir || '(repository root)')}`,
     '',
     'The data path lines must match, and so must the two image lines.');
-  const warn = layoutWarningText();
+  const warn = imageWarningText();
   if (warn) lines.push('', '*** ' + warn + ' ***');
   setSyncStatus(lines.join('\n'));
   const el = document.getElementById('gh-status');
@@ -1342,7 +1387,11 @@ async function saveToGitHub(isAuto) {
     lastDataSha = await ghFileSha(cfg, DATA_PATH);
     unsavedChanges = false;
     setSyncStatus(`Saved as ${res.shortSha} — ${res.files.length} file`
-      + `${res.files.length === 1 ? '' : 's'}. GitHub Pages usually redeploys within a minute.`, 'good');
+      + `${res.files.length === 1 ? '' : 's'}`
+      + (res.attempts > 1
+          ? ` (the branch had moved, so it was rebuilt on the newer commit)`
+          : '')
+      + '. GitHub Pages usually redeploys within a minute.', 'good');
   } catch (err) {
     setSyncStatus('Not saved: ' + err.message, 'bad');
   } finally {

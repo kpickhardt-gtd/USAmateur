@@ -1060,3 +1060,15 @@ a { text-decoration: none; color: inherit; }
   color: #8c2f22;
   border-left: 4px solid var(--flag);
 }
+
+/* Cross-link in the admin/preflight header bar */
+.admin-header__link {
+  flex-shrink: 0;
+  font-size: 12px;
+  padding: 6px 11px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.14);
+  color: var(--cream);
+  white-space: nowrap;
+}
+.admin-header__link:hover { background: rgba(255,255,255,0.24); }
