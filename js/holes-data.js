@@ -1,5 +1,5 @@
 // Hole images and marshal stations.
-// Saved from admin.html on 2026-08-25T00:52:14.703Z
+// Saved from admin.html on 2026-08-25T00:55:47.864Z
 const HOLES_DATA = {
   "east": {
     "name": "Oak Hill East",
@@ -282,8 +282,26 @@ const HOLES_DATA = {
             }
           ]
         },
-        "image": null,
-        "imageReady": false,
+        "image": {
+          "src": "images/holes/east-06.jpg",
+          "width": 2048,
+          "height": 1152,
+          "tee": {
+            "x": 0.08000000000024449,
+            "y": 0.5000000000026269
+          },
+          "green": {
+            "x": 0.9200000000002444,
+            "y": 0.5000000000026268
+          },
+          "shots": [
+            {
+              "x": 0.5961301741291658,
+              "y": 0.34309619299823074
+            }
+          ]
+        },
+        "imageReady": true,
         "spotsDone": false,
         "lengthYards": 508.87380108522206
       },
