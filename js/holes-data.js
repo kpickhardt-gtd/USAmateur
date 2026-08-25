@@ -1,5 +1,5 @@
 // Hole images and marshal stations.
-// Saved from admin.html on 2026-08-25T18:01:57.969Z
+// Saved from admin.html on 2026-08-25T18:44:55.409Z
 //
 // savedAt is read back by the admin so it can tell whether this file or
 // a browser draft is the newer one, rather than making you guess.
@@ -283,7 +283,32 @@ const HOLES_DATA = {
           -77.529742
         ],
         "zoom": 18,
-        "marshals": [],
+        "marshals": [
+          {
+            "t": -0.014068976509228143,
+            "offsetYards": -9.54331098729083,
+            "radiusYards": 13,
+            "label": "Marshal spot 1"
+          },
+          {
+            "t": 0.9237769845070346,
+            "offsetYards": 30.688300810479035,
+            "radiusYards": 13,
+            "label": "Marshal spot 2"
+          },
+          {
+            "t": 1.0871799754562552,
+            "offsetYards": 4.357821575293434,
+            "radiusYards": 13,
+            "label": "Marshal spot 3"
+          },
+          {
+            "t": 0.9559777041985803,
+            "offsetYards": -33.13592284400768,
+            "radiusYards": 13,
+            "label": "Marshal spot 4"
+          }
+        ],
         "source": {
           "kind": "satellite",
           "tee": {
@@ -314,7 +339,7 @@ const HOLES_DATA = {
           },
           "shots": []
         },
-        "imageReady": true,
+        "imageReady": false,
         "spotsDone": false,
         "lengthYards": 185.02300617994064
       },
@@ -1516,5 +1541,5 @@ const HOLES_DATA = {
       }
     ]
   },
-  "savedAt": "2026-08-25T18:01:57.969Z"
+  "savedAt": "2026-08-25T18:44:55.409Z"
 };
