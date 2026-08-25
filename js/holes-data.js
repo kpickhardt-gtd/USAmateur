@@ -1,5 +1,5 @@
 // Hole images and marshal stations.
-// Saved from admin.html on 2026-08-25T00:31:31.874Z
+// Saved from admin.html on 2026-08-25T00:37:45.234Z
 const HOLES_DATA = {
   "east": {
     "name": "Oak Hill East",
@@ -317,26 +317,8 @@ const HOLES_DATA = {
             }
           ]
         },
-        "image": {
-          "src": "images/holes/east-06.jpg",
-          "width": 2048,
-          "height": 1152,
-          "tee": {
-            "x": 0.08000000000024449,
-            "y": 0.5000000000026269
-          },
-          "green": {
-            "x": 0.9200000000002444,
-            "y": 0.5000000000026268
-          },
-          "shots": [
-            {
-              "x": 0.5961301741291658,
-              "y": 0.34309619299823074
-            }
-          ]
-        },
-        "imageReady": true,
+        "image": null,
+        "imageReady": false,
         "spotsDone": false,
         "lengthYards": 508.87380108522206
       },
@@ -417,19 +399,19 @@ const HOLES_DATA = {
         "source": {
           "kind": "satellite",
           "tee": {
-            "lat": 43.119344288878224,
-            "lng": -77.52756581273243
+            "lat": 43.119318307204985,
+            "lng": -77.52756491858761
           },
           "green": {
-            "lat": 43.115921204602124,
-            "lng": -77.52867674790134
+            "lat": 43.11590841292472,
+            "lng": -77.52870294973624
           },
           "bearingNudge": 0,
           "zoomNudge": 0,
           "shots": [
             {
-              "lat": 43.11717275390466,
-              "lng": -77.52844682572898
+              "lat": 43.1173313016639,
+              "lng": -77.52835164404786
             }
           ]
         },
@@ -438,23 +420,23 @@ const HOLES_DATA = {
           "width": 2048,
           "height": 1152,
           "tee": {
-            "x": 0.07999999999790386,
-            "y": 0.499999999997701
+            "x": 0.08000000000000002,
+            "y": 0.4999999999999999
           },
           "green": {
-            "x": 0.9199999999979038,
-            "y": 0.4999999999977009
+            "x": 0.92,
+            "y": 0.5
           },
           "shots": [
             {
-              "x": 0.619966077483444,
-              "y": 0.5531436535333679
+              "x": 0.574598302636428,
+              "y": 0.5372883651533439
             }
           ]
         },
         "imageReady": true,
         "spotsDone": false,
-        "lengthYards": 428.9590191710219
+        "lengthYards": 427.33287990350675
       },
       {
         "number": 9,
