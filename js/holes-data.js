@@ -1,5 +1,5 @@
 // Hole images and marshal stations.
-// Saved from admin.html on 2026-08-25T16:02:59.315Z
+// Saved from admin.html on 2026-08-25T16:06:34.229Z
 const HOLES_DATA = {
   "east": {
     "name": "Oak Hill East",
@@ -188,20 +188,22 @@ const HOLES_DATA = {
             "lng": -77.52472249893661
           },
           "bearingNudge": 0,
-          "zoomNudge": 0,
-          "shots": []
+          "zoomNudge": 0.25,
+          "shots": [],
+          "imagery": "esri",
+          "capturedZoom": 21
         },
         "image": {
-          "src": "east-03.jpg",
-          "width": 1761,
-          "height": 991,
+          "src": "images/holes/east-03.jpg",
+          "width": 3072,
+          "height": 1728,
           "tee": {
-            "x": 0.08000000000234507,
-            "y": 0.5000000000038008
+            "x": 0.0005330117016459912,
+            "y": 0.5000000000045219
           },
           "green": {
-            "x": 0.9200000000023452,
-            "y": 0.5000000000038011
+            "x": 0.9994669883039317,
+            "y": 0.5000000000045222
           },
           "shots": []
         },
@@ -288,20 +290,22 @@ const HOLES_DATA = {
             "lng": -77.52569013236786
           },
           "bearingNudge": 0,
-          "zoomNudge": -0.25,
-          "shots": []
+          "zoomNudge": 0,
+          "shots": [],
+          "imagery": "esri",
+          "capturedZoom": 21
         },
         "image": {
-          "src": "east-05.jpg",
-          "width": 1622,
-          "height": 912,
+          "src": "images/holes/east-05.jpg",
+          "width": 3072,
+          "height": 1728,
           "tee": {
-            "x": 0.14682350559012414,
-            "y": 0.4999999999983387
+            "x": 0.07999999999605685,
+            "y": 0.4999999999980251
           },
           "green": {
-            "x": 0.8531764944032443,
-            "y": 0.49999999999833883
+            "x": 0.9199999999960569,
+            "y": 0.49999999999802536
           },
           "shots": []
         },
