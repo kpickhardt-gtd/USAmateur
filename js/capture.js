@@ -56,10 +56,55 @@ function loadTile(url) {
     const img = new Image();
     // Required so the tiles can be written into a canvas we then export.
     img.crossOrigin = 'anonymous';
-    img.onload = () => resolve({ ok: true, img });
+    img.onload = () => resolve({ ok: true, img, blank: tileIsBlank(img) });
     img.onerror = () => resolve({ ok: false, url });
     img.src = url;
   });
+}
+
+/* ---------- "Map data not available" ----------
+
+   Esri does not 404 a tile beyond its imagery coverage. It returns 200 OK with
+   a picture of the words "Map data not available" on a near-white background.
+   That is a perfectly valid image, so every check based on whether a tile
+   LOADS reports coverage that isn't there -- which is how a capture ends up
+   being a mosaic of that message instead of a golf hole.
+
+   So a tile has to be judged on its content. Aerial imagery of a golf course
+   is busy: hundreds of distinct colours and a wide spread of brightness. The
+   placeholder is nearly flat -- one background tone plus a little dark text.
+   Sampling a small grid of pixels separates the two comfortably, and it is
+   cheap enough to run on every tile.
+
+   Reading pixels needs the CORS-clean image the capture already requires, so
+   this costs nothing extra. If the read throws (a tainted canvas), we say
+   "not blank" rather than discarding good imagery on a technicality. */
+const BLANK_STDDEV = 9;      // aerial imagery sits far above this
+const BLANK_COLOURS = 12;    // distinct 4-bit-per-channel colours
+
+function tileIsBlank(img) {
+  try {
+    const S = 32;
+    const c = document.createElement('canvas');
+    c.width = S; c.height = S;
+    const x = c.getContext('2d', { willReadFrequently: true });
+    x.drawImage(img, 0, 0, S, S);
+    const px = x.getImageData(0, 0, S, S).data;
+
+    const seen = Object.create(null);
+    let n = 0, sum = 0, sumSq = 0, distinct = 0;
+    for (let i = 0; i < px.length; i += 4) {
+      const lum = 0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2];
+      sum += lum; sumSq += lum * lum; n++;
+      const key = (px[i] >> 4) * 256 + (px[i + 1] >> 4) * 16 + (px[i + 2] >> 4);
+      if (!seen[key]) { seen[key] = 1; distinct++; }
+    }
+    if (!n) return false;
+    const stddev = Math.sqrt(Math.max(0, sumSq / n - (sum / n) * (sum / n)));
+    return stddev < BLANK_STDDEV && distinct < BLANK_COLOURS;
+  } catch (e) {
+    return false;
+  }
 }
 
 /* Work out the zoom, scale and rotation needed to draw the hole across the
@@ -192,8 +237,39 @@ function captureGeometryPass(opts) {
 }
 
 /* Composite the tiles and hand back a JPEG blob plus the image metadata
-   that stage 2 needs. */
+   that stage 2 needs.
+
+   If the chosen zoom turns out to be past the imagery's real coverage -- which
+   shows up as "Map data not available" tiles rather than as errors -- this
+   drops a zoom level and tries again, rather than handing back a picture of
+   that message. Stepping down costs sharpness; shipping the message costs the
+   whole image. */
 async function captureHoleImage(opts) {
+  const floor = Math.max(MIN_TILE_ZOOM, (opts.minZoom || MIN_TILE_ZOOM));
+  let attempt = opts.maxZoom || MAX_TILE_ZOOM;
+  let steppedDown = 0;
+  let lastErr = null;
+
+  for (;;) {
+    const res = await captureOnce(Object.assign({}, opts, { maxZoom: attempt }));
+    // A few blank tiles at the edge of coverage are tolerable; a frame built
+    // mostly out of them is not an image of anything.
+    const blankFrac = res.tilesLoaded ? res.tilesBlank / res.tilesLoaded : 0;
+    if (blankFrac <= 0.15 || res.zoom <= floor) {
+      res.steppedDown = steppedDown;
+      res.blankFraction = +blankFrac.toFixed(3);
+      if (blankFrac > 0.15) {
+        lastErr = `imagery is not available here even at zoom ${res.zoom}`;
+        res.coverageWarning = lastErr;
+      }
+      return res;
+    }
+    attempt = res.zoom - 1;
+    steppedDown++;
+  }
+}
+
+async function captureOnce(opts) {
   const geo = captureGeometry({
     tee: opts.tee, green: opts.green, shots: opts.shots || [],
     width: opts.width || CAPTURE_WIDTH,
@@ -249,10 +325,11 @@ async function captureHoleImage(opts) {
   ctx.scale(geo.scale, geo.scale);
   ctx.translate(-geo.mid.x, -geo.mid.y);
   ctx.imageSmoothingQuality = 'high';
-  let loaded = 0, failed = 0;
+  let loaded = 0, failed = 0, blank = 0;
   results.forEach(r => {
     if (!r.ok) { failed++; return; }
     loaded++;
+    if (r.blank) blank++;
     // +1px overdraw kills hairline seams between tiles after scaling.
     ctx.drawImage(r.img, r.tx * TILE_SIZE, r.ty * TILE_SIZE, TILE_SIZE + 1, TILE_SIZE + 1);
   });
@@ -279,6 +356,7 @@ async function captureHoleImage(opts) {
     blob,
     tilesLoaded: loaded,
     tilesFailed: failed,
+    tilesBlank: blank,
     zoom: geo.zoom,
     scale: geo.scale,
     downsized: geo.downsized,

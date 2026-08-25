@@ -508,6 +508,49 @@ a { text-decoration: none; color: inherit; }
   letter-spacing: 0.03em;
 }
 
+/* ---------- compass rose ----------
+   Sits above the map, small enough to ignore and large enough to read with
+   the phone at arm's length in sun. */
+.hole-compass {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 44px;
+  height: 44px;
+  z-index: 500;          /* above tiles and overlays, below Leaflet popups */
+  pointer-events: none;
+  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.45));
+}
+.hole-compass__rose {
+  width: 100%;
+  height: 100%;
+  transform-origin: 50% 50%;
+  transition: transform 160ms ease-out;
+}
+.hole-compass__disc {
+  fill: rgba(20, 22, 20, 0.62);
+  stroke: rgba(246, 243, 234, 0.55);
+  stroke-width: 1.5;
+}
+/* Lit side of each needle half, then the shaded side, so the needle reads as
+   a solid object rather than a flat triangle. */
+.hole-compass__n      { fill: #d94f3d; }
+.hole-compass__n-dark { fill: #a83626; }
+.hole-compass__s      { fill: #f6f3ea; }
+.hole-compass__s-dark { fill: #c9c4b4; }
+.hole-compass__label {
+  fill: #f6f3ea;
+  font-family: 'Oswald', system-ui, sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  text-anchor: middle;
+  letter-spacing: 0.04em;
+}
+
+@media (max-width: 480px) {
+  .hole-compass { width: 38px; height: 38px; top: 8px; right: 8px; }
+}
+
 /* Imagery source picker. */
 .imagery-picker {
   margin: 0 0 14px;

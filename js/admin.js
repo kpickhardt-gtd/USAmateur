@@ -51,6 +51,7 @@ let suppressRotateCapture = false;
 let imgMap = null;
 let imgOverlay = null;
 let imgEndpoints = null;
+let imgCompass = null;
 let spotLayers = [];
 let previewMode = 'wide';
 let markEndpoint = null;       // 'tee' | 'green' while re-marking on an image
@@ -89,7 +90,12 @@ function loadState() {
 }
 
 function saveDraft() {
-  try { localStorage.setItem(DRAFT_KEY, JSON.stringify(state)); } catch (e) { /* full/blocked */ }
+  try {
+    localStorage.setItem(DRAFT_KEY, JSON.stringify(state));
+    // Stamped alongside, so a later conflict can say which side is newer
+    // instead of asking you to work it out from two counts.
+    localStorage.setItem(DRAFT_TIME_KEY, String(Date.now()));
+  } catch (e) { /* full/blocked */ }
 }
 
 /* ============================================================
@@ -268,21 +274,124 @@ function dataStats(d) {
   return { images, signed, spots };
 }
 
-function sameStats(a, b) {
-  return a.images === b.images && a.signed === b.signed && a.spots === b.spots;
+/* ============================================================
+   DRAFT vs FILE
+
+   This banner was firing constantly, and it was mostly wrong. Three separate
+   reasons, all worth fixing rather than papering over:
+
+   1. It compared unlike things. `state` has been through migrateState; the
+      file's contents had not. Migration is not neutral -- it removes leftover
+      placeholder stations, fills in missing lengths, defaults imageReady --
+      so the two sides differed BY CONSTRUCTION and the banner appeared even
+      when the draft and the file were the same data. Both sides are now
+      normalised the same way before being compared.
+
+   2. It compared COUNTS. Counting images and stations is a weak proxy: two
+      genuinely different data sets can have identical counts, and identical
+      data can count differently after normalisation. Now it compares an exact
+      fingerprint of the content that matters.
+
+   3. It never re-baselined after a save. `HOLES_DATA` is whatever the page
+      loaded; the moment you save, that snapshot is stale by definition, so
+      every later check compared the draft against content we had ourselves
+      just replaced -- which also kept auto-save permanently paused. A
+      successful save now updates the baseline.
+   ============================================================ */
+
+/* The file's contents as this page loaded them, replaced whenever we
+   successfully write the file ourselves. */
+let fileBaseline = null;
+
+function normalisedCopy(d) {
+  const c = JSON.parse(JSON.stringify(d || {}));
+  try { migrateData(c, false); } catch (e) { /* compare what we can */ }
+  return c;
+}
+
+/* Everything that would make two data sets meaningfully different, and
+   nothing that wouldn't. Coordinates are rounded so floating-point noise from
+   migration can't register as a change. */
+function dataFingerprint(d) {
+  const c = normalisedCopy(d);
+  const r = (n, p) => (typeof n === 'number' && isFinite(n) ? n.toFixed(p) : '-');
+  const pt = p => p ? `${r(p.x, 6)}:${r(p.y, 6)}` : '-';
+  const parts = [];
+
+  ['east', 'west'].forEach(k => (((c[k] && c[k].holes) || [])).forEach(h => {
+    parts.push([
+      k, h.number,
+      h.image ? [h.image.src, h.image.width, h.image.height,
+                 pt(h.image.tee), pt(h.image.green),
+                 (h.image.shots || []).map(pt).join('|')].join(',') : '-',
+      h.imageReady ? 1 : 0,
+      h.spotsDone ? 1 : 0,
+      r(h.lengthYards, 2),
+      (h.marshals || []).map(s =>
+        [r(s.t, 6), r(s.offsetYards, 3), r(s.radiusYards, 3), s.label || ''].join('/')).join('|')
+    ].join('~'));
+  }));
+
+  // FNV-1a: short, stable, and good enough to tell two documents apart.
+  let hash = 0x811c9dc5;
+  const str = parts.join(';');
+  for (let i = 0; i < str.length; i++) {
+    hash ^= str.charCodeAt(i);
+    hash = (hash + ((hash << 1) + (hash << 4) + (hash << 7) + (hash << 8) + (hash << 24))) >>> 0;
+  }
+  return hash.toString(16);
+}
+
+const DRAFT_TIME_KEY = 'oakhill_draft_saved_at_v1';
+
+function draftSavedAt() {
+  try { return parseInt(localStorage.getItem(DRAFT_TIME_KEY) || '0', 10) || 0; }
+  catch (e) { return 0; }
+}
+
+function fileSavedAt(d) {
+  const t = d && d.savedAt ? Date.parse(d.savedAt) : 0;
+  return isFinite(t) ? t : 0;
 }
 
 function checkDraftConflict() {
   const banner = document.getElementById('draft-conflict');
   if (!banner) return;
-  const d = dataStats(state), f = dataStats(HOLES_DATA);
-  if (sameStats(d, f)) { banner.hidden = true; return; }
+  const base = fileBaseline || HOLES_DATA;
+
+  if (dataFingerprint(state) === dataFingerprint(base)) {
+    banner.hidden = true;
+    return;
+  }
+
   const fmt = s => `${s.images} image${s.images === 1 ? '' : 's'} · ${s.spots} station${s.spots === 1 ? '' : 's'}`;
+  const d = dataStats(normalisedCopy(state)), f = dataStats(normalisedCopy(base));
+
+  /* Which is newer is the only question that matters, and it used to be left
+     entirely to the reader. Both sides now carry a timestamp where they can. */
+  const dt = draftSavedAt(), ft = fileSavedAt(base);
+  let verdict;
+  if (dt && ft) {
+    verdict = dt > ft
+      ? `<strong>The browser copy is newer</strong> (edited ${describeAge(dt)}; the file was saved ${describeAge(ft)}). Keeping it is almost certainly right.`
+      : `<strong>The file is newer</strong> (saved ${describeAge(ft)}; this browser was last edited ${describeAge(dt)}) — most likely edited from another browser or tab. Loading the file is almost certainly right.`;
+  } else {
+    verdict = 'Which is newer can\'t be determined — this browser copy predates '
+      + 'the change that started recording edit times.';
+  }
+
   document.getElementById('draft-conflict-text').innerHTML =
-    `Unexported edits in this browser (<strong>${fmt(d)}</strong>) don't match `
-    + `<code>js/holes-data.js</code> on disk (<strong>${fmt(f)}</strong>). `
-    + `The browser copy is in use — load the file instead if it's the newer one.`;
+    `Edits in this browser (<strong>${fmt(d)}</strong>) don't match `
+    + `<code>${DATA_PATH}</code> (<strong>${fmt(f)}</strong>). ${verdict}`;
   banner.hidden = false;
+}
+
+function describeAge(ms) {
+  const s = Math.max(0, (Date.now() - ms) / 1000);
+  if (s < 90) return 'just now';
+  if (s < 3600) return `${Math.round(s / 60)} min ago`;
+  if (s < 86400) return `${Math.round(s / 3600)} h ago`;
+  return `${Math.round(s / 86400)} days ago`;
 }
 
 /* THE ONES THE SWEEP CAN'T PROVE
@@ -370,15 +479,19 @@ function removeSuspectPlaceholders() {
 }
 
 function useFileInstead() {
-  if (!window.confirm('Discard the edits stored in this browser and load js/holes-data.js?')) return;
-  try { localStorage.removeItem(DRAFT_KEY); } catch (e) { /* ignore */ }
+  if (!window.confirm(`Discard the edits stored in this browser and load ${DATA_PATH}?`)) return;
+  try {
+    localStorage.removeItem(DRAFT_KEY);
+    localStorage.removeItem(DRAFT_TIME_KEY);
+  } catch (e) { /* ignore */ }
   state = JSON.parse(JSON.stringify(HOLES_DATA));
+  fileBaseline = JSON.parse(JSON.stringify(HOLES_DATA));
   migrateState();
   populateHoleSelect();
   loadHole();
   renderProgress();
   checkDraftConflict();
-  setStatus('Loaded js/holes-data.js.');
+  setStatus('Loaded ' + DATA_PATH + '.');
 }
 
 /* Stations removed by the sweep in migrateState, so start-up can say so out
@@ -393,10 +506,23 @@ let lengthsAssumed = [];
 /* Bring older drafts up to the split schema, including converting any
    lat/lng marshal spots into axis coordinates. */
 function migrateState() {
-  placeholdersRemoved = 0;
-  lengthsAssumed = [];
+  migrateData(state, true);
+}
+
+/* The same normalisation, applied to any dataset rather than only the global
+   one. It has to be callable on a COPY of the file's contents, because that is
+   the only way to compare the browser draft against the file honestly: the
+   draft has been migrated and the raw file has not, so comparing the two
+   directly reports differences that migration itself introduced.
+
+   `report` is false for those throwaway copies -- migrating a copy to compare
+   it must not tell the user that placeholders were removed or lengths
+   assumed, since nothing they can see was changed. */
+function migrateData(data, report) {
+  if (report) { placeholdersRemoved = 0; lengthsAssumed = []; }
+  let removed = 0;
   ['east', 'west'].forEach(key => {
-    const course = state[key];
+    const course = data[key];
     if (!course || !course.holes) return;
     course.holes.forEach(h => {
       if (!h.source) {
@@ -419,7 +545,7 @@ function migrateState() {
       // falls back to a typical length for the par where they don't. Without
       // this, a hole built from an uploaded image has no scale and every one
       // of its stations is silently undrawable.
-      if (ensureHoleLength(h) && holeHasImage(h)) lengthsAssumed.push(h.number);
+      if (ensureHoleLength(h) && holeHasImage(h) && report) lengthsAssumed.push(h.number);
       if (!Array.isArray(h.marshals)) h.marshals = [];
       const cameFromLatLng = new Set();   // stations this pass converted
       h.marshals = h.marshals.map(s => {
@@ -482,11 +608,13 @@ function migrateState() {
         const before = h.marshals.length;
         h.marshals = h.marshals.filter(s =>
           !cameFromLatLng.has(s) && !looksLikeLegacyPlaceholder(s));
-        placeholdersRemoved += before - h.marshals.length;
+        removed += before - h.marshals.length;
         if (!h.marshals.length) h.spotsDone = false;
       }
     });
   });
+  if (report) placeholdersRemoved = removed;
+  return removed;
 }
 
 /* Project a lat/lng marshal spot onto the hole axis (migration only). */
@@ -797,6 +925,16 @@ async function reportImageryDetail() {
   try {
     const z = await probeMaxZoom(key, c.lat, c.lng);
     if (key !== imagerySourceKey) return;     // switched while we were asking
+
+    /* Hold the LIVE map to the same limit. Otherwise zooming past coverage
+       fills the screen with "Map data not available" tiles, which look like a
+       broken app rather than the edge of the imagery. Leaflet upscales the
+       deepest real level instead, which is blurry but honest. */
+    if (geoLayer && geoLayer.options.maxNativeZoom !== z) {
+      geoLayer.options.maxNativeZoom = z;
+      geoLayer.redraw();
+    }
+
     // Ground resolution at the equator, corrected for latitude.
     const mPerPx = 156543.03392 * Math.cos(c.lat * Math.PI / 180) / Math.pow(2, z);
     const cm = mPerPx * 100;
@@ -1066,12 +1204,23 @@ async function captureCurrentHole() {
 
     const extra = [];
     if (res.tilesFailed) extra.push(`${res.tilesFailed} tile(s) failed to load`);
+    if (res.steppedDown) {
+      extra.push(`dropped ${res.steppedDown} zoom level${res.steppedDown === 1 ? '' : 's'} `
+        + 'because the imagery runs out above this one');
+    }
     if (res.downsized) extra.push(`sized ${res.image.width}×${res.image.height} to stay at native imagery detail`);
     if (res.zoomedOutToFit) extra.push(`zoomed out ${res.zoomedOutToFit}× so the dogleg fits`);
     // The real numbers, because "is this sharper?" should not be a guess.
     extra.push(`zoom ${res.zoom}, ${Math.round(res.blob.size / 1024)} KB`);
-    setStatus(`Captured ${filename} at ${res.image.width}×${res.image.height} `
-      + `from ${src.label} — ${extra.join('; ')}.`);
+    if (res.coverageWarning) {
+      // Better to say the picture is unusable than to let 36 of them ship.
+      setStatus(`Captured ${filename}, but ${src.label} has no imagery here even at `
+        + `zoom ${res.zoom} — most of the picture is "Map data not available". `
+        + 'Try another imagery source, or upload an image for this hole.');
+    } else {
+      setStatus(`Captured ${filename} at ${res.image.width}×${res.image.height} `
+        + `from ${src.label} — ${extra.join('; ')}.`);
+    }
     markDirty();
     refreshUi();
   } catch (err) {
@@ -1215,6 +1364,7 @@ function frameImageStage() {
   const h = hole();
   if (!imgMap || !holeHasImage(h)) return;
   frameImage(imgMap, h, previewMode, 8);
+  if (imgCompass) imgCompass.apply();   // frameImage changes the bearing
 }
 
 function setPreview(mode) {
@@ -1238,6 +1388,11 @@ function drawImageLayers() {
   }
   spotLayers.forEach(s => { imgMap.removeLayer(s.marker); imgMap.removeLayer(s.circle); });
   spotLayers = [];
+
+  // Shown here too, so the needle can be checked against the satellite view in
+  // stage 1 before 36 holes are published with it.
+  if (imgCompass) { imgCompass.el.remove(); imgCompass = null; }
+  imgCompass = addCompass(imgMap, h);
 
   imgEndpoints = addHoleEndpoints(imgMap, h, { draggable: true, labels: false });
   if (imgEndpoints) {
@@ -1939,6 +2094,14 @@ async function saveToGitHub(isAuto) {
 
     lastDataSha = await ghFileSha(cfg, DATA_PATH);
     unsavedChanges = false;
+
+    /* The file now holds exactly what is on screen, so the baseline this page
+       loaded is stale. Without this the conflict banner reappears against
+       content we just wrote ourselves, and auto-save stays paused for the rest
+       of the session. */
+    fileBaseline = JSON.parse(JSON.stringify(state));
+    fileBaseline.savedAt = new Date().toISOString();
+    checkDraftConflict();
     const notes = [];
     if (res.rebases > 1) notes.push('the branch had moved, so it was rebuilt on the newer commit');
     if (res.waitedMs) notes.push(`GitHub took ${Math.round(res.waitedMs / 1000)}s to catch up`);
@@ -1957,7 +2120,11 @@ async function saveToGitHub(isAuto) {
 /* The exact text written to js/holes-data.js -- shared by the download button
    and the GitHub save so the two can never drift apart. */
 function buildDataFileText() {
+  const stamped = Object.assign({}, state, { savedAt: new Date().toISOString() });
   return '// Hole images and marshal stations.\n'
-    + '// Saved from admin.html on ' + new Date().toISOString() + '\n'
-    + 'const HOLES_DATA = ' + JSON.stringify(state, null, 2) + ';\n';
+    + '// Saved from admin.html on ' + stamped.savedAt + '\n'
+    + '//\n'
+    + '// savedAt is read back by the admin so it can tell whether this file or\n'
+    + '// a browser draft is the newer one, rather than making you guess.\n'
+    + 'const HOLES_DATA = ' + JSON.stringify(stamped, null, 2) + ';\n';
 }

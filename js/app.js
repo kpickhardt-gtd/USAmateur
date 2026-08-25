@@ -27,7 +27,7 @@
 /* Bumped whenever the code changes. Shown in the admin header so you can tell
    at a glance whether the browser is running the version you just uploaded,
    rather than a cached copy. */
-const BUILD_STAMP = '2026-08-25h';
+const BUILD_STAMP = '2026-08-25j';
 
 /* ---------- imagery sources (stage 1 only) ----------
 
@@ -93,23 +93,51 @@ const SATELLITE_ATTRIBUTION = IMAGERY_SOURCES.esri.attribution;
 
    A source's declared maxZoom is only its ceiling; real coverage varies street
    by street. Rather than assume, fetch one tile at each level from the deepest
-   down and take the first that loads. Cached per source+area, because the
-   answer is stable and the probe costs a round trip. */
+   down and take the first that carries real imagery.
+
+   "Carries real imagery" is doing the work in that sentence. The first version
+   of this asked only whether the tile LOADED, which is useless here: Esri
+   answers a request beyond its coverage with 200 OK and a picture of the words
+   "Map data not available". That loads perfectly, so the probe reported deep
+   coverage that did not exist and captures came back as a mosaic of that
+   message. The tile's CONTENT has to be examined, not its status. */
 const _maxZoomCache = Object.create(null);
+
+function tileXY(lat, lng, z) {
+  const size = Math.pow(2, z);
+  const s = Math.sin(lat * Math.PI / 180);
+  return {
+    x: Math.floor((lng + 180) / 360 * size),
+    y: Math.floor((0.5 - Math.log((1 + s) / (1 - s)) / (4 * Math.PI)) * size)
+  };
+}
+
+/* Loads a tile and reports whether it holds actual imagery. */
+function probeTile(url) {
+  return new Promise(resolve => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      if (!img.naturalWidth) { resolve(false); return; }
+      // tileIsBlank lives in capture.js; if it isn't loaded (the marshal
+      // pages don't need it), fall back to "loaded means available".
+      resolve(typeof tileIsBlank === 'function' ? !tileIsBlank(img) : true);
+    };
+    img.onerror = () => resolve(false);
+    img.src = url;
+  });
+}
 
 async function probeMaxZoom(sourceKey, lat, lng) {
   const src = imagerySource(sourceKey);
-  const cacheKey = `${sourceKey}@${lat.toFixed(2)},${lng.toFixed(2)}`;
+  const cacheKey = `${sourceKey}@${lat.toFixed(3)},${lng.toFixed(3)}`;
   if (cacheKey in _maxZoomCache) return _maxZoomCache[cacheKey];
 
   const FLOOR = 17;
   for (let z = src.maxZoom; z >= FLOOR; z--) {
-    const size = Math.pow(2, z);
-    const x = Math.floor((lng + 180) / 360 * size);
-    const s = Math.sin(lat * Math.PI / 180);
-    const y = Math.floor((0.5 - Math.log((1 + s) / (1 - s)) / (4 * Math.PI)) * size);
-    const url = src.url.replace('{z}', z).replace('{x}', x).replace('{y}', y);
-    if (await probeImage(url)) { _maxZoomCache[cacheKey] = z; return z; }
+    const t = tileXY(lat, lng, z);
+    const url = src.url.replace('{z}', z).replace('{x}', t.x).replace('{y}', t.y);
+    if (await probeTile(url)) { _maxZoomCache[cacheKey] = z; return z; }
   }
   _maxZoomCache[cacheKey] = FLOOR;
   return FLOOR;
@@ -499,6 +527,104 @@ function layoutBearing(mode) {
   return mode === 'wide' ? 0 : -90;
 }
 
+/* ---------- which way is north on a hole image ----------
+
+   Every hole image is rotated so the hole runs left-to-right, which is what
+   makes the pages readable and also what destroys the one orientation cue a
+   marshal already has. Standing on the course, "the 4th plays north-east" is
+   worth more than any amount of on-screen geometry -- so the image needs to
+   say which way it has been turned.
+
+   The obvious approach is to record the rotation at capture time. That works
+   for captures and fails for uploaded artwork, which was never put through
+   our rotation at all.
+
+   This derives it instead, from two facts the data already holds:
+
+     beta  the TRUE bearing from tee to green, from the satellite coordinates
+     A     the direction from tee to green ON THE IMAGE, in pixels
+
+   Both describe the same line, so the difference between them is the whole
+   rotation of the image relative to the world. North is bearing 0, so it sits
+   at A - beta on the image. Nothing needs storing, any manual rotation nudge
+   is already baked into where the pins landed, and it works identically for a
+   satellite capture and for a hand-marked photograph.
+
+   Returns null when the hole has no satellite coordinates, because then the
+   rotation genuinely isn't knowable. A compass pointing the wrong way on a
+   golf course is far worse than no compass. */
+function holeNorthDeg(hole) {
+  if (!holeHasImage(hole) || !holeHasSource(hole)) return null;
+
+  const dx = (hole.image.green.x - hole.image.tee.x) * hole.image.width;
+  const dy = (hole.image.green.y - hole.image.tee.y) * hole.image.height;
+  if (!dx && !dy) return null;
+
+  // Image y grows downward, so "clockwise from up" is atan2(dx, -dy).
+  const A = Math.atan2(dx, -dy) * 180 / Math.PI;
+  const beta = geoBearing(hole.source.tee, hole.source.green);
+  // Normalised to [0, 360). The extra % guards the floating-point case where
+  // the expression lands a hair under 360 and rounds up to a bare "360deg".
+  const deg = ((A - beta) % 360 + 360) % 360;
+  return deg >= 359.9995 ? 0 : deg;
+}
+
+/* A small compass rose pinned to the corner of a hole image.
+
+   It sits above the map rather than inside it, so it is never rotated by
+   Leaflet -- the angle is applied explicitly, which keeps the needle correct
+   when the layout flips between the wide and narrow orientations. */
+function addCompass(map, hole) {
+  const northDeg = holeNorthDeg(hole);
+  if (northDeg === null) return null;
+
+  const el = document.createElement('div');
+  el.className = 'hole-compass';
+  el.setAttribute('aria-hidden', 'true');
+  el.innerHTML =
+    /* Geometry notes, since the numbers look arbitrary otherwise:
+       the needle pivots on the disc centre (24,24) because that is also the
+       CSS rotation origin, and its two halves are equal lengths so it reads as
+       one needle rather than an arrow. The N sits inside the disc above the
+       tip -- an earlier version put it at the very top edge, where it was
+       clipped and effectively invisible. */
+    '<svg viewBox="0 0 48 48" class="hole-compass__rose">'
+    + '<circle cx="24" cy="24" r="22" class="hole-compass__disc"/>'
+    // North half red, south half pale: readable at a glance without the label.
+    + '<path d="M24 13 L30 24 L24 24 Z" class="hole-compass__n"/>'
+    + '<path d="M24 13 L18 24 L24 24 Z" class="hole-compass__n-dark"/>'
+    + '<path d="M24 35 L18 24 L24 24 Z" class="hole-compass__s"/>'
+    + '<path d="M24 35 L30 24 L24 24 Z" class="hole-compass__s-dark"/>'
+    + '<text x="24" y="11.5" class="hole-compass__label">N</text>'
+    + '</svg>';
+
+  map.getContainer().appendChild(el);
+
+  const rose = el.querySelector('.hole-compass__rose');
+  function apply() {
+    const a = northDeg + (map.getBearing ? map.getBearing() : 0);
+    rose.style.transform = `rotate(${a}deg)`;
+    el.title = `North is ${Math.round(((northDeg % 360) + 360) % 360)}° `
+      + 'clockwise from the top of this image';
+  }
+  apply();
+  map.on('rotate', apply);
+  map.on('rotateend', apply);
+
+  return { el, apply, northDeg };
+}
+
+/* Plain-language heading, for people who would rather read it than
+   interpret a needle. */
+const COMPASS_POINTS = ['north', 'north-east', 'east', 'south-east',
+                        'south', 'south-west', 'west', 'north-west'];
+
+function holePlaysDirection(hole) {
+  if (!holeHasSource(hole)) return null;
+  const b = geoBearing(hole.source.tee, hole.source.green);
+  return COMPASS_POINTS[Math.round(b / 45) % 8];
+}
+
 function mapLibraryMissing(containerId) {
   const haveLeaflet = typeof L !== 'undefined';
   const haveRotate = haveLeaflet && typeof L.Map.prototype.setBearing === 'function';
@@ -774,6 +900,10 @@ function renderHolePage() {
     const bits = [];
     if (hole.par) bits.push('Par ' + hole.par);
     if (hole.lengthYards) bits.push(Math.round(hole.lengthYards) + ' yd');
+    // The one orientation cue that survives being read aloud, or glanced at
+    // in bright sun with the phone at arm's length.
+    const dir = holePlaysDirection(hole);
+    if (dir) bits.push('plays ' + dir);
     parEl.textContent = bits.join(' · ');
   }
 
@@ -828,8 +958,13 @@ function renderHolePage() {
   setHoleImage(map, hole);
   addHoleEndpoints(map, hole);
   spots.forEach((spot, i) => addMarshalSpot(map, hole, spot, i));
+  const compass = addCompass(map, hole);
 
-  function frame() { frameImage(map, hole, layoutMode()); }
+  function frame() {
+    frameImage(map, hole, layoutMode());
+    // frameImage changes the bearing, so re-point the needle after it.
+    if (compass) compass.apply();
+  }
   frame();
 
   const recenter = document.getElementById('hole-recenter');
