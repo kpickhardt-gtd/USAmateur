@@ -24,6 +24,11 @@
      marshals     [ { t, offsetYards, radiusYards, label } ]       <- stage 2
    ============================================================ */
 
+/* Bumped whenever the code changes. Shown in the admin header so you can tell
+   at a glance whether the browser is running the version you just uploaded,
+   rather than a cached copy. */
+const BUILD_STAMP = '2026-08-25e';
+
 const SATELLITE_TILE_URL = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
 const SATELLITE_ATTRIBUTION = 'Imagery &copy; Esri, Maxar, Earthstar Geographics';
 

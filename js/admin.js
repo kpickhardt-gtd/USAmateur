@@ -176,8 +176,13 @@ function migrateState() {
             label: s.label || ''
           };
         }
-        return { t: 0.5, offsetYards: 0, radiusYards: DEFAULT_RADIUS_YARDS, label: s.label || '' };
-      });
+        // Can't be converted -- no geometry to project it against. DROP it
+        // rather than inventing a position: a fabricated station in the middle
+        // of the hole looks like real data and would send a marshal to the
+        // wrong place. The old placeholder rows land here, which is why holes
+        // that were never worked on come through clean.
+        return null;
+      }).filter(Boolean);
     });
   });
 }
@@ -257,6 +262,9 @@ function initAdmin() {
   document.getElementById('dismiss-conflict').addEventListener('click', () => {
     document.getElementById('draft-conflict').hidden = true;
   });
+
+  const stampEl = document.getElementById('build-stamp');
+  if (stampEl) stampEl.textContent = BUILD_STAMP;
 
   setStatus(loaded.fromDraft
     ? 'Restored your in-progress edits from this browser.'
@@ -1308,7 +1316,8 @@ function showWhatWillBeSaved() {
   const cfg = ghCfgFromForm();
   const images = pendingImageList();
   const dataDir = imageDirInData();
-  const lines = [`${cfg.owner || '?'}/${cfg.repo || '?'} on ${cfg.branch || '?'}`,
+  const lines = [`build ${BUILD_STAMP}`,
+                 `${cfg.owner || '?'}/${cfg.repo || '?'} on ${cfg.branch || '?'}`,
                  '', 'Files this save would write:',
                  `  ${DATA_PATH}   (${buildDataFileText().length.toLocaleString()} bytes)`];
   images.forEach(p => lines.push(`  ${p.path}   (${Math.round(p.blob.size / 1024)} KB)`));
