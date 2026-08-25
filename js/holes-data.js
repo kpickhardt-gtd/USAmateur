@@ -1,5 +1,5 @@
 // Hole images and marshal stations.
-// Saved from admin.html on 2026-08-25T00:22:35.022Z
+// Saved from admin.html on 2026-08-25T00:23:40.969Z
 const HOLES_DATA = {
   "east": {
     "name": "Oak Hill East",
