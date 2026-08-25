@@ -1,5 +1,5 @@
 // Hole images and marshal stations.
-// Saved from admin.html on 2026-08-25T00:38:54.215Z
+// Saved from admin.html on 2026-08-25T00:52:14.703Z
 const HOLES_DATA = {
   "east": {
     "name": "Oak Hill East",
@@ -12,14 +12,7 @@ const HOLES_DATA = {
           -77.52566
         ],
         "zoom": 18,
-        "marshals": [
-          {
-            "t": 0.5,
-            "offsetYards": 0,
-            "radiusYards": 13,
-            "label": "Marshal spot 1 - PLACEHOLDER"
-          }
-        ],
+        "marshals": [],
         "source": {
           "kind": "satellite",
           "tee": {
@@ -70,14 +63,7 @@ const HOLES_DATA = {
           -77.525958
         ],
         "zoom": 18,
-        "marshals": [
-          {
-            "t": 0.5,
-            "offsetYards": 0,
-            "radiusYards": 13,
-            "label": "Marshal spot 1 - PLACEHOLDER"
-          }
-        ],
+        "marshals": [],
         "source": {
           "kind": "satellite",
           "tee": {
@@ -128,14 +114,7 @@ const HOLES_DATA = {
           -77.526816
         ],
         "zoom": 18,
-        "marshals": [
-          {
-            "t": 0.5,
-            "offsetYards": 0,
-            "radiusYards": 13,
-            "label": "Marshal spot 1 - PLACEHOLDER"
-          }
-        ],
+        "marshals": [],
         "source": {
           "kind": "satellite",
           "tee": {
@@ -176,14 +155,7 @@ const HOLES_DATA = {
           -77.52813
         ],
         "zoom": 18,
-        "marshals": [
-          {
-            "t": 0.5,
-            "offsetYards": 0,
-            "radiusYards": 13,
-            "label": "Marshal spot 1 - PLACEHOLDER"
-          }
-        ],
+        "marshals": [],
         "source": {
           "kind": "satellite",
           "tee": {
@@ -242,14 +214,7 @@ const HOLES_DATA = {
           -77.529742
         ],
         "zoom": 18,
-        "marshals": [
-          {
-            "t": 0.5,
-            "offsetYards": 0,
-            "radiusYards": 13,
-            "label": "Marshal spot 1 - PLACEHOLDER"
-          }
-        ],
+        "marshals": [],
         "source": {
           "kind": "satellite",
           "tee": {
@@ -330,14 +295,7 @@ const HOLES_DATA = {
           -77.53307
         ],
         "zoom": 18,
-        "marshals": [
-          {
-            "t": 0.5,
-            "offsetYards": 0,
-            "radiusYards": 13,
-            "label": "Marshal spot 1 - PLACEHOLDER"
-          }
-        ],
+        "marshals": [],
         "source": {
           "kind": "satellite",
           "tee": {
@@ -388,14 +346,7 @@ const HOLES_DATA = {
           -77.534384
         ],
         "zoom": 18,
-        "marshals": [
-          {
-            "t": 0.5,
-            "offsetYards": 0,
-            "radiusYards": 13,
-            "label": "Marshal spot 1 - PLACEHOLDER"
-          }
-        ],
+        "marshals": [],
         "source": {
           "kind": "satellite",
           "tee": {
@@ -446,14 +397,7 @@ const HOLES_DATA = {
           -77.535242
         ],
         "zoom": 18,
-        "marshals": [
-          {
-            "t": 0.5,
-            "offsetYards": 0,
-            "radiusYards": 13,
-            "label": "Marshal spot 1 - PLACEHOLDER"
-          }
-        ],
+        "marshals": [],
         "source": {
           "kind": "satellite",
           "tee": {
