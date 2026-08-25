@@ -1,5 +1,5 @@
 // Hole images and marshal stations.
-// Saved from admin.html on 2026-08-25T18:50:53.106Z
+// Saved from admin.html on 2026-08-25T18:51:56.557Z
 //
 // savedAt is read back by the admin so it can tell whether this file or
 // a browser draft is the newer one, rather than making you guess.
@@ -1541,5 +1541,5 @@ const HOLES_DATA = {
       }
     ]
   },
-  "savedAt": "2026-08-25T18:50:53.106Z"
+  "savedAt": "2026-08-25T18:51:56.557Z"
 };
