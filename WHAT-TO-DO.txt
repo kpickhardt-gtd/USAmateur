@@ -1,21 +1,20 @@
-UPDATE PACKAGE — Oak Hill Marshal Guide
-=======================================
+UPDATE PACKAGE — folder layout
+========================================
 
-These are CODE files only. There is deliberately NO holes-data.js and NO hole
-images in here, because those are YOUR data and are already correct in the
-repository. Uploading this set cannot lose your East course work.
+CODE ONLY. No holes-data.js and no hole images, so uploading this cannot
+touch your data.
 
-WHAT TO DO
-  1. Unzip.
-  2. On your repo's main page: Add file -> Upload files.
-  3. Select ALL the files in this folder and drag them in.
-     GitHub will show them as changes to existing files -- that's right.
-  4. Commit.
+This package is for a repository laid out like:
+  index.html, admin.html, css/style.css, js/app.js, images/holes/*.jpg
 
-Roughly a minute later your live site is running the new code, and the admin
-page has a "Save to GitHub" panel at the bottom.
+Images will be saved to: images/holes/
 
-Then follow the testing steps Claude gave you, starting with Test connection.
+UPLOAD
+  Unzip. In your repo: Add file -> Upload files, drag the CONTENTS in
+  (keeping the folders), commit. Then reload the admin with Ctrl-Shift-R.
 
-If anything goes wrong, every one of these files is versioned -- open the
-commit on GitHub and click Revert to put the old code back.
+VERIFY BEFORE SAVING
+  In "Save to GitHub", click "Show what will be saved". Check that:
+    "This build saves images to" matches "Your data stores images in"
+  If a red warning appears saying the wrong build is deployed, stop --
+  you have the other layout's package.

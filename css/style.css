@@ -994,3 +994,69 @@ a { text-decoration: none; color: inherit; }
   text-decoration: underline;
   text-underline-offset: 2px;
 }
+
+/* ---------- GitHub sync panel ---------- */
+.gh-panel { border-top: 1px solid #e4e0d3; padding-top: 18px; }
+
+.gh-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.gh-grid label, .gh-token-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--turf);
+}
+.gh-grid input, .gh-token-row input {
+  font: inherit;
+  font-size: 14px;
+  text-transform: none;
+  letter-spacing: 0;
+  padding: 8px 10px;
+  border: 1px solid #d8d3c3;
+  border-radius: var(--radius);
+  background: #fff;
+  color: var(--ink);
+  width: 100%;
+}
+.gh-token-row { margin-bottom: 10px; }
+
+.gh-unsaved {
+  font-size: 12.5px;
+  font-weight: 600;
+  margin: 0 0 12px;
+  padding: 7px 10px;
+  border-radius: var(--radius);
+  background: #f1ece0;
+  color: #6b756e;
+}
+.gh-unsaved--dirty { background: #fdf3e7; color: #6a5533; }
+.gh-unsaved--clean { background: #eaf1ea; color: var(--turf); }
+.gh-unsaved--busy  { background: #e8eef4; color: #3d5a72; }
+
+.gh-status { min-height: 18px; }
+.gh-status--good { color: var(--turf); }
+.gh-status--bad  { color: var(--flag); }
+
+/* Diagnostics output keeps its line breaks */
+.gh-status--pre {
+  white-space: pre-wrap;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11.5px;
+  line-height: 1.5;
+  background: #f1ece0;
+  padding: 10px;
+  border-radius: var(--radius);
+  color: #3a423c;
+}
+.gh-unsaved--warn {
+  background: #fdeceb;
+  color: #8c2f22;
+  border-left: 4px solid var(--flag);
+}

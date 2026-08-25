@@ -38,9 +38,13 @@ let spotLayers = [];
 let previewMode = 'wide';
 let markEndpoint = null;       // 'tee' | 'green' while re-marking on an image
 
-/* Object URLs for images captured this session but not yet committed to
-   disk, so stage 2 works immediately without a round-trip through git. */
+/* Images made this session that aren't in the repo yet.
+   { url, blob, path } -- the blob is what gets committed; the url lets stage 2
+   show it immediately without waiting for a round-trip through GitHub. */
 const pendingImages = Object.create(null);
+
+/* Set when anything changes; cleared on a successful save. */
+let unsavedChanges = false;
 
 function courseObj() { return state[currentCourse]; }
 function hole() { return courseObj().holes.find(h => h.number === currentHoleNum); }
@@ -51,7 +55,8 @@ function imageDisplaySrc(h) {
   const key = holeKey(currentCourse, h.number);
   // A capture made this session is still a blob; otherwise resolve the
   // committed file path for whichever folder layout this build uses.
-  return pendingImages[key] || (h.image && h.image.src ? resolveImageSrc(h.image.src) : null);
+  const pending = pendingImages[key];
+  return (pending && pending.url) || (h.image && h.image.src ? resolveImageSrc(h.image.src) : null);
 }
 
 /* ---------- persistence ---------- */
@@ -79,6 +84,9 @@ function markDirty(msg) {
   saveDraft();
   if (msg) setStatus(msg);
   renderProgress();
+  unsavedChanges = true;
+  updateSyncUi();
+  scheduleAutoSave();
 }
 
 function dataStats(d) {
@@ -254,6 +262,7 @@ function initAdmin() {
     ? 'Restored your in-progress edits from this browser.'
     : 'Starting from the data file on disk.');
 
+  initGitHubSync();
   populateHoleSelect();
   initGeoMap();
   setStage(1);
@@ -577,10 +586,14 @@ async function captureCurrentHole() {
     };
     h.imageReady = false;   // becomes true when you sign it off
 
-    if (pendingImages[key]) URL.revokeObjectURL(pendingImages[key]);
-    pendingImages[key] = URL.createObjectURL(res.blob);
-
-    downloadBlob(res.blob, filename);
+    if (pendingImages[key]) URL.revokeObjectURL(pendingImages[key].url);
+    pendingImages[key] = {
+      url: URL.createObjectURL(res.blob),
+      blob: res.blob,
+      path: h.image.src
+    };
+    // Only fall back to a download when there's no GitHub save configured.
+    if (!ghReady()) downloadBlob(res.blob, filename);
 
     const extra = [];
     if (res.tilesFailed) extra.push(`${res.tilesFailed} tile(s) failed to load`);
@@ -619,8 +632,8 @@ function uploadImage(e) {
       shots: keepShots
     };
     h.imageReady = false;
-    if (pendingImages[key]) URL.revokeObjectURL(pendingImages[key]);
-    pendingImages[key] = url;
+    if (pendingImages[key]) URL.revokeObjectURL(pendingImages[key].url);
+    pendingImages[key] = { url, blob: file, path: h.image.src };
     markDirty(`Loaded ${file.name} (${probe.naturalWidth}×${probe.naturalHeight}). `
       + `Save it as ${h.image.src}, then check the T and G marks in stage 2.`);
     refreshUi();
@@ -978,12 +991,7 @@ function exportHole() {
 }
 
 function exportAll() {
-  downloadText('holes-data.js',
-    '// Hole images and marshal stations.\n'
-    + '// Exported from admin.html on ' + new Date().toISOString() + '\n'
-    + '// Replace js/holes-data.js with this file and commit it.\n'
-    + 'const HOLES_DATA = ' + JSON.stringify(state, null, 2) + ';\n',
-    'text/javascript');
+  downloadText('holes-data.js', buildDataFileText(), 'text/javascript');
   setStatus('Exported holes-data.js — replace js/holes-data.js and commit it, '
     + 'along with any new images in ' + (IMAGE_DIR || 'the site folder') + '.');
 }
@@ -1033,4 +1041,320 @@ function resetToOriginal() {
   renderProgress();
   checkDraftConflict();
   setStatus('Reset to the data file on disk.');
+}
+
+/* ============================================================
+   GitHub sync — the automatic save path
+   ============================================================ */
+
+let autoSaveTimer = null;
+let saveInFlight = false;
+let lastDataSha = null;          // remote sha of holes-data.js as we last knew it
+
+/* Where the data file lives IN THE REPO. Derived from this page's own script
+   tag rather than hardcoded, because the folder build loads
+   "js/holes-data.js" and the flat build loads "holes-data.js" -- and a
+   hardcoded guess silently writes to a path the live site never reads. */
+const DATA_PATH = (function () {
+  const el = document.querySelector('script[src$="holes-data.js"]');
+  const src = el ? el.getAttribute('src') : 'js/holes-data.js';
+  return src.replace(/^\.?\//, '').split('?')[0];
+})();
+const AUTO_SAVE_DELAY = 8000;    // quiet period before an automatic commit
+
+function ghCfgFromForm() {
+  const cfg = ghLoadConfig();
+  return {
+    owner: document.getElementById('gh-owner').value.trim() || cfg.owner,
+    repo: document.getElementById('gh-repo').value.trim() || cfg.repo,
+    branch: document.getElementById('gh-branch').value.trim() || cfg.branch || 'main',
+    autoSave: document.getElementById('gh-autosave').checked
+  };
+}
+
+/* Enough configured to attempt a save? */
+function ghReady() {
+  const cfg = ghLoadConfig();
+  return !!(cfg.owner && cfg.repo && ghGetToken());
+}
+
+function initGitHubSync() {
+  const cfg = ghLoadConfig();
+  document.getElementById('gh-owner').value = cfg.owner;
+  document.getElementById('gh-repo').value = cfg.repo;
+  document.getElementById('gh-branch').value = cfg.branch;
+  document.getElementById('gh-autosave').checked = cfg.autoSave;
+  document.getElementById('gh-token').value = ghGetToken();
+  document.getElementById('gh-remember').checked = ghTokenRemembered();
+
+  ['gh-owner', 'gh-repo', 'gh-branch'].forEach(id =>
+    document.getElementById(id).addEventListener('change', () => {
+      ghSaveConfig(ghCfgFromForm()); updateSyncUi();
+    }));
+
+  document.getElementById('gh-autosave').addEventListener('change', () => {
+    ghSaveConfig(ghCfgFromForm());
+    setSyncStatus(document.getElementById('gh-autosave').checked
+      ? 'Auto-save on — changes commit themselves a few seconds after you stop editing.'
+      : 'Auto-save off — use Save to GitHub when you\'re ready.');
+    updateSyncUi();
+  });
+
+  document.getElementById('gh-token').addEventListener('change', e => {
+    ghSetToken(e.target.value.trim(), document.getElementById('gh-remember').checked);
+    updateSyncUi();
+  });
+  document.getElementById('gh-remember').addEventListener('change', e => {
+    ghSetToken(document.getElementById('gh-token').value.trim(), e.target.checked);
+  });
+  document.getElementById('gh-forget').addEventListener('click', () => {
+    ghForgetToken();
+    document.getElementById('gh-token').value = '';
+    document.getElementById('gh-remember').checked = false;
+    setSyncStatus('Token cleared from this browser.');
+    updateSyncUi();
+  });
+
+  document.getElementById('gh-test').addEventListener('click', testGitHub);
+  document.getElementById('gh-dryrun').addEventListener('click', showWhatWillBeSaved);
+  document.getElementById('gh-save').addEventListener('click', () => saveToGitHub(false));
+
+  // Don't let a closed tab lose work that hasn't been committed.
+  window.addEventListener('beforeunload', e => {
+    if (!unsavedChanges || !ghReady()) return;
+    e.preventDefault();
+    e.returnValue = '';
+  });
+
+  updateSyncUi();
+}
+
+function setSyncStatus(msg, kind) {
+  const el = document.getElementById('gh-status');
+  if (!el) return;
+  el.textContent = msg || '';
+  el.className = 'admin-status gh-status' + (kind ? ' gh-status--' + kind : '');
+}
+
+function pendingImageList() {
+  return Object.keys(pendingImages)
+    .map(k => pendingImages[k])
+    .filter(p => p && p.blob && p.path);
+}
+
+function updateSyncUi() {
+  const badge = document.getElementById('gh-unsaved');
+  if (!badge) return;
+  const nImages = pendingImageList().length;
+  const ready = ghReady();
+
+  // Shown ahead of everything else: if the deployed build disagrees with the
+  // data about where images live, nothing else about this panel matters.
+  const warn = layoutWarningText();
+  if (warn) {
+    badge.textContent = warn;
+    badge.className = 'gh-unsaved gh-unsaved--warn';
+    document.getElementById('gh-save').disabled = !ready || saveInFlight;
+    document.getElementById('gh-test').disabled = !ghGetToken() || saveInFlight;
+    return;
+  }
+
+  document.getElementById('gh-save').disabled = !ready || saveInFlight;
+  document.getElementById('gh-test').disabled = !ghGetToken() || saveInFlight;
+
+  if (!ready) {
+    badge.textContent = 'Not connected — fill in the repository and token to save automatically.';
+    badge.className = 'gh-unsaved';
+    return;
+  }
+  if (saveInFlight) { badge.textContent = 'Saving…'; badge.className = 'gh-unsaved gh-unsaved--busy'; return; }
+
+  if (unsavedChanges || nImages) {
+    badge.textContent = 'Unsaved changes'
+      + (nImages ? ` · ${nImages} image${nImages === 1 ? '' : 's'} not yet in the repo` : '');
+    badge.className = 'gh-unsaved gh-unsaved--dirty';
+  } else {
+    badge.textContent = 'Everything is saved to GitHub.';
+    badge.className = 'gh-unsaved gh-unsaved--clean';
+  }
+}
+
+/* True while the "your browser copy doesn't match the file" banner is up. */
+function draftConflictUnresolved() {
+  const b = document.getElementById('draft-conflict');
+  return !!(b && !b.hidden);
+}
+
+function scheduleAutoSave() {
+  const cfg = ghLoadConfig();
+  if (!cfg.autoSave || !ghReady()) return;
+
+  // Never let an automatic save quietly push a stale browser draft over good
+  // data in the repo. The banner has to be dealt with first -- either load the
+  // file, or explicitly choose to keep the browser copy.
+  if (draftConflictUnresolved()) {
+    setSyncStatus('Auto-save paused: your browser copy doesn\'t match the '
+      + 'repository. Resolve the notice at the top before saving.', 'bad');
+    return;
+  }
+
+  clearTimeout(autoSaveTimer);
+  autoSaveTimer = setTimeout(() => saveToGitHub(true), AUTO_SAVE_DELAY);
+}
+
+async function testGitHub() {
+  const cfg = ghCfgFromForm();
+  ghSaveConfig(cfg);
+  setSyncStatus('Checking…');
+  try {
+    const r = await ghTestConnection(cfg);
+    if (!r.branchOk) { setSyncStatus(r.branchMsg + ' Check the branch name.', 'bad'); return; }
+    if (!r.canPush) {
+      setSyncStatus(`Connected to ${r.repoFullName}, but this token can't write to it. `
+        + 'Give it "Contents: Read and write" for this repository.', 'bad');
+      return;
+    }
+    setSyncStatus(`Connected to ${r.repoFullName} (${r.private ? 'private' : 'public'}) `
+      + `on ${cfg.branch}, with write access. Saving will work.`, 'good');
+    updateSyncUi();
+  } catch (err) {
+    setSyncStatus(err.message, 'bad');
+  }
+}
+
+/* Which directory the existing hole records already use for images, or null
+   if nothing has an image yet. The DATA is the authority on where images
+   live -- if this build disagrees with it, the wrong build is deployed. */
+function imageDirInData() {
+  let dir = null;
+  ['east', 'west'].forEach(k => ((state[k] && state[k].holes) || []).forEach(h => {
+    if (dir === null && h.image && h.image.src) {
+      const i = h.image.src.lastIndexOf('/');
+      dir = i >= 0 ? h.image.src.slice(0, i + 1) : '';
+    }
+  }));
+  return dir;
+}
+
+/* Catches the case where folder-build data is loaded by flat-build code, or
+   vice versa -- which silently writes images to the wrong place. */
+function layoutMismatch() {
+  const dataDir = imageDirInData();
+  if (dataDir === null) return null;          // nothing to compare against yet
+  if (dataDir === IMAGE_BASE) return null;
+  return { dataDir, buildDir: IMAGE_BASE };
+}
+
+function layoutWarningText() {
+  const m = layoutMismatch();
+  if (!m) return '';
+  const show = d => d === '' ? 'the repository root' : d;
+  return `Wrong build deployed? Your hole data stores images in ${show(m.dataDir)}, `
+       + `but this copy of the site saves them to ${show(m.buildDir)}. `
+       + `New captures will go to the wrong place. Check you uploaded the `
+       + `${m.buildDir === '' ? 'FLAT' : 'FOLDER'}-build files to a `
+       + `${m.dataDir === '' ? 'FLAT' : 'FOLDER'}-layout repository.`;
+}
+
+/* Exactly what a save would write, without writing it. The paths are the
+   thing worth checking: a wrong one commits successfully but to a file the
+   live site never reads. */
+function showWhatWillBeSaved() {
+  const cfg = ghCfgFromForm();
+  const images = pendingImageList();
+  const dataDir = imageDirInData();
+  const lines = [`${cfg.owner || '?'}/${cfg.repo || '?'} on ${cfg.branch || '?'}`,
+                 '', 'Files this save would write:',
+                 `  ${DATA_PATH}   (${buildDataFileText().length.toLocaleString()} bytes)`];
+  images.forEach(p => lines.push(`  ${p.path}   (${Math.round(p.blob.size / 1024)} KB)`));
+  if (!images.length) lines.push('  (no new images pending)');
+  lines.push('',
+    `This page loads data from : ${DATA_PATH}`,
+    `This build saves images to: ${IMAGE_BASE || '(repository root)'}`,
+    `Your data stores images in: ${dataDir === null ? '(none yet)' : (dataDir || '(repository root)')}`,
+    '',
+    'The data path lines must match, and so must the two image lines.');
+  const warn = layoutWarningText();
+  if (warn) lines.push('', '*** ' + warn + ' ***');
+  setSyncStatus(lines.join('\n'));
+  const el = document.getElementById('gh-status');
+  if (el) el.classList.add('gh-status--pre');
+}
+
+/* Commit the data file plus any images that aren't in the repo yet. */
+async function saveToGitHub(isAuto) {
+  if (saveInFlight) return;
+  const cfg = ghCfgFromForm();
+  if (!cfg.owner || !cfg.repo) { setSyncStatus('Set the repository owner and name first.', 'bad'); return; }
+  if (!ghGetToken()) { setSyncStatus('Enter an access token first.', 'bad'); return; }
+
+  // Same guard for a manual save, but here you're allowed to override.
+  if (draftConflictUnresolved()) {
+    const go = window.confirm(
+      'Your browser copy of the hole data does not match js/holes-data.js in the '
+      + 'repository (see the notice at the top of the page).\n\n'
+      + 'Saving now overwrites the repository with what is on this screen. '
+      + 'If the repository copy is the newer one, cancel and use '
+      + '"Load the file instead".\n\nSave anyway?');
+    if (!go) { setSyncStatus('Save cancelled — the repository copy was left alone.', 'bad'); return; }
+  }
+
+  clearTimeout(autoSaveTimer);
+  saveInFlight = true;
+  updateSyncUi();
+  ghSaveConfig(cfg);
+
+  try {
+    // Notice if something else changed the data file since we last synced.
+    const remoteSha = await ghFileSha(cfg, DATA_PATH);
+    if (lastDataSha && remoteSha && remoteSha !== lastDataSha) {
+      const go = window.confirm(
+        'js/holes-data.js has changed in the repository since this page loaded '
+        + '(edited elsewhere, or from another browser).\n\n'
+        + 'Saving now replaces it with what is on this screen. Continue?');
+      if (!go) {
+        setSyncStatus('Save cancelled — the repository copy was left alone.', 'bad');
+        return;
+      }
+    }
+
+    const images = pendingImageList();
+    const files = [{ path: DATA_PATH, text: buildDataFileText() }]
+      .concat(images.map(p => ({ path: p.path, blob: p.blob })));
+
+    const stats = dataStats(state);
+    const msg = `Marshal guide: ${stats.images} hole images, ${stats.spots} stations`
+      + (images.length ? ` (+${images.length} image file${images.length === 1 ? '' : 's'})` : '')
+      + (isAuto ? ' [auto-save]' : '');
+
+    const res = await ghCommitFiles(cfg, files, msg, m => setSyncStatus(m));
+
+    // Committed images are no longer pending.
+    images.forEach(p => {
+      Object.keys(pendingImages).forEach(k => {
+        if (pendingImages[k] === p) {
+          URL.revokeObjectURL(p.url);
+          delete pendingImages[k];
+        }
+      });
+    });
+
+    lastDataSha = await ghFileSha(cfg, DATA_PATH);
+    unsavedChanges = false;
+    setSyncStatus(`Saved as ${res.shortSha} — ${res.files.length} file`
+      + `${res.files.length === 1 ? '' : 's'}. GitHub Pages usually redeploys within a minute.`, 'good');
+  } catch (err) {
+    setSyncStatus('Not saved: ' + err.message, 'bad');
+  } finally {
+    saveInFlight = false;
+    updateSyncUi();
+  }
+}
+
+/* The exact text written to js/holes-data.js -- shared by the download button
+   and the GitHub save so the two can never drift apart. */
+function buildDataFileText() {
+  return '// Hole images and marshal stations.\n'
+    + '// Saved from admin.html on ' + new Date().toISOString() + '\n'
+    + 'const HOLES_DATA = ' + JSON.stringify(state, null, 2) + ';\n';
 }

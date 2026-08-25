@@ -7,8 +7,8 @@
 <meta name="robots" content="noindex, nofollow">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="leaflet.css"/>
-<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="vendor/leaflet/leaflet.css"/>
+<link rel="stylesheet" href="css/style.css">
 </head>
 <body class="admin-page">
 
@@ -130,7 +130,7 @@
   <button type="button" class="course-btn course-btn--east" id="capture-hole">
     <span class="course-btn__label">Satellite &rarr; image</span>
     <span class="course-btn__name">Capture hole image</span>
-    <span class="course-btn__meta">downloads a .jpg to save beside these files</span>
+    <span class="course-btn__meta">downloads a .jpg to save in images/holes/</span>
   </button>
 
   <label class="admin-import">
@@ -208,6 +208,7 @@
 
   <div class="admin-btn-row">
     <button type="button" class="pager-btn" id="gh-test">Test connection</button>
+    <button type="button" class="pager-btn pager-btn--all" id="gh-dryrun">Show what will be saved</button>
     <button type="button" class="pager-btn pager-btn--all" id="gh-forget">Forget token</button>
   </div>
 
@@ -246,7 +247,7 @@
   <button type="button" class="course-btn course-btn--west" id="export-all">
     <span class="course-btn__label">Everything</span>
     <span class="course-btn__name">Export holes-data.js</span>
-    <span class="course-btn__meta">replaces holes-data.js to publish the site</span>
+    <span class="course-btn__meta">replaces js/holes-data.js to publish the site</span>
   </button>
 
   <label class="admin-import">
@@ -265,7 +266,7 @@
   </p>
 
   <p class="hole-info__note">
-    Captured images download to your computer — save them into this folder in the
+    Captured images download to your computer — save them into <code>images/holes/</code> in the
     repo. The data itself only reaches the live site when you export
     <code>holes-data.js</code> and commit it.
   </p>
@@ -274,13 +275,13 @@
 </div><!-- /admin-layout__panels -->
 </div><!-- /admin-layout -->
 
-<script src="leaflet.js"></script>
-<script src="leaflet-rotate.js"></script>
-<script src="holes-data.js"></script>
-<script src="app.js"></script>
-<script src="capture.js"></script>
-<script src="github-sync.js"></script>
-<script src="admin.js"></script>
+<script src="vendor/leaflet/leaflet.js"></script>
+<script src="vendor/leaflet/leaflet-rotate.js"></script>
+<script src="js/holes-data.js"></script>
+<script src="js/app.js"></script>
+<script src="js/capture.js"></script>
+<script src="js/github-sync.js"></script>
+<script src="js/admin.js"></script>
 <script>
   if (!mapLibraryMissing('geo-map')) initAdmin();
 </script>
