@@ -1,5 +1,5 @@
 // Hole images and marshal stations.
-// Saved from admin.html on 2026-08-25T00:37:45.234Z
+// Saved from admin.html on 2026-08-25T00:38:54.215Z
 const HOLES_DATA = {
   "east": {
     "name": "Oak Hill East",
@@ -456,15 +456,45 @@ const HOLES_DATA = {
         ],
         "source": {
           "kind": "satellite",
-          "tee": null,
-          "green": null,
+          "tee": {
+            "lat": 43.11640192226023,
+            "lng": -77.52770802051582
+          },
+          "green": {
+            "lat": 43.11351687922185,
+            "lng": -77.53125982775894
+          },
           "bearingNudge": 0,
-          "zoomNudge": 0,
-          "shots": []
+          "zoomNudge": 0.25,
+          "shots": [
+            {
+              "lat": 43.11410000107352,
+              "lng": -77.5295879731334
+            }
+          ]
         },
-        "image": null,
-        "imageReady": false,
-        "spotsDone": false
+        "image": {
+          "src": "images/holes/east-09.jpg",
+          "width": 2048,
+          "height": 1152,
+          "tee": {
+            "x": 0.0005330116988572775,
+            "y": 0.4999999999999999
+          },
+          "green": {
+            "x": 0.9994669883011427,
+            "y": 0.5000000000000002
+          },
+          "shots": [
+            {
+              "x": 0.6776907082758089,
+              "y": 0.26286179280328026
+            }
+          ]
+        },
+        "imageReady": true,
+        "spotsDone": false,
+        "lengthYards": 490.37371772481583
       },
       {
         "number": 10,
